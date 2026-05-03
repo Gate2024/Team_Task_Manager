@@ -1,33 +1,48 @@
-# Team Task Manager
+# 🚀 Team Task Manager
 
-A full-stack web application that allows users to create projects, manage team members, assign tasks, and track progress using role-based access control.
+A full-stack web application designed to manage team projects, assign tasks, and track progress with role-based access control.
 
 ---
 
-## 📌 Features
+## 🌐 Live Application
+👉 https://team-task-manager-nb8a.onrender.com
+
+---
+
+## 📌 Project Overview
+
+Team Task Manager is built to simplify team collaboration.  
+It allows users to create projects, manage members, assign tasks, and monitor progress — all in one place.
+
+Each project has its own role-based system, ensuring secure and structured task management.
+
+---
+
+## ✨ Key Features
 
 ### 🔐 Authentication
-- User Signup and Login
-- JWT-based authentication
+- Secure user signup and login
+- JWT-based authentication system
 
 ---
 
 ### 📁 Project Management
-- Any authenticated user can create a project
-- The user who creates a project automatically becomes the **Admin of that project**
+- Users can create multiple projects
+- Project creator automatically becomes **Admin**
 
 ---
 
 ### 👥 Team Management
-- Admin can add members to a project
-- Members are linked to specific projects
+- Admin can add members using email
+- Only registered users can be added
+- Members are project-specific
 
 ---
 
 ### ✅ Task Management
 - Admin can:
   - Create tasks
-  - Assign tasks to team members
+  - Assign tasks to members
 - Each task includes:
   - Title
   - Description
@@ -41,34 +56,63 @@ A full-stack web application that allows users to create projects, manage team m
   - To Do
   - In Progress
   - Done
-- Members can update the status of their assigned tasks
+- Members can update task status
 
 ---
 
 ### 🔐 Role-Based Access Control
 
-Roles are **project-specific**, not global.
+Roles are **project-specific**:
 
-A user can have different roles in different projects:
+#### 👑 Admin
+- Create projects
+- Add/remove members
+- Assign tasks
+- Delete tasks
 
-- **Admin (for a project)**
-  - Create tasks
-  - Assign tasks
-  - Add members
-
-- **Member (for a project)**
-  - View assigned tasks only
-  - Update task status
-  - Cannot assign tasks or add members
+#### 👤 Member
+- View assigned tasks
+- Update task status
+- Cannot manage members or assign tasks
 
 ---
 
-### 📊 Dashboard
-- Displays tasks of the selected project
+## 📊 Dashboard
+
+- Displays selected project data
 - Shows:
   - Total tasks
   - Completed tasks
   - Pending tasks
+
+👉 UI dynamically changes based on user role (Admin / Member)
+
+---
+
+## ⚙️ How It Works
+
+1. User signs up and logs in
+2. User creates a project → becomes Admin
+3. Admin adds team members
+4. Admin assigns tasks to members
+5. Members log in and update task status
+6. Dashboard updates in real-time based on role and data
+
+---
+
+## 🗄️ Database Design
+
+### Tables:
+- User
+- Project
+- ProjectMember
+- Task
+
+### Relationships:
+- One user → multiple projects
+- One project → multiple members
+- Tasks belong to a project
+- ProjectMember table handles role-based access
 
 ---
 
@@ -86,6 +130,9 @@ A user can have different roles in different projects:
 
 ### Database
 - SQLite
+
+### Deployment
+- Render
 
 ---
 
