@@ -111,13 +111,17 @@
             const li = document.createElement("li");
             li.textContent = p.name;
 
-            li.onclick = () => {
+            li.onclick = async () => {
                 selectedProjectId = p.id;
                 highlightSelected(li);
+
+                // 🔥 पहले role check
+                await checkRole(p.id);
+
+                // फिर बाकी load
                 loadTasks(p.id);
                 loadMembers(p.id);
                 loadMembersDropdown(p.id);
-                checkRole(p.id);
             };
 
             list.appendChild(li);
@@ -316,20 +320,25 @@ ${isAdmin ? `<button onclick="deleteTask(${t.id})">Delete</button>` : ""}       
 
     // LOAD MEMBERS
     async function loadMembers(projectId) {
-        const res = await fetch(`/members/${projectId}`, {
-            headers: { "Authorization": "Bearer " + token }
-        });
+    const res = await fetch(`/members/${projectId}`, {
+        headers: { "Authorization": "Bearer " + token }
+    });
 
-        const data = await res.json();
+    const data = await res.json();
 
-        const list = document.getElementById("memberList");
-        list.innerHTML = "";
+    const list = document.getElementById("memberList");
+    list.innerHTML = "";
 
-        data.forEach(m => {
-            const div = document.createElement("div");
-            div.className = "member-item";
+    const userId = JSON.parse(atob(token.split('.')[1])).sub;
 
-            div.innerHTML = `
+    data.forEach(m => {
+        const div = document.createElement("div");
+        div.className = "member-item";
+
+        // 🔥 direct role check
+        const isCurrentUserAdmin = data.find(u => u.id == userId)?.role === "admin";
+
+        div.innerHTML = `
         <div class="member-info">
             <div class="member-name">${m.name}</div>
             <div class="member-email">${m.email}</div>
@@ -384,59 +393,51 @@ ${isAdmin ? `<button onclick="deleteTask(${t.id})">Delete</button>` : ""}       
     //  ROLE 
 
     async function checkRole(projectId) {
-    const res = await fetch(`/members/${projectId}`, {
-        headers: { Authorization: "Bearer " + token }
-    });
+        const res = await fetch(`/members/${projectId}`, {
+            headers: { Authorization: "Bearer " + token }
+        });
 
-    const data = await res.json();
+        const data = await res.json();
 
-    const userId = JSON.parse(atob(token.split('.')[1])).sub;
+        const userId = JSON.parse(atob(token.split('.')[1])).sub;
 
-    const me = data.find(m => m.id == userId);
+        const me = data.find(m => m.id == userId);
 
-    isAdmin = me && me.role === "admin";
+        isAdmin = me && me.role === "admin";
 
-    console.log("ROLE:", isAdmin); // debug
+        console.log("ROLE:", isAdmin); // debug
 
-    document.getElementById("roleText").innerText =
-        isAdmin ? "Admin" : "Member";
+        document.getElementById("roleText").innerText =
+            isAdmin ? "Admin" : "Member";
 
-    toggleUI();  // 🔥 MUST
-}
+        toggleUI();  // 🔥 MUST
+    }
 
     // UI CONTROL
-   function toggleUI() {
-    // PROJECT CREATE
-    document.getElementById("projectForm").style.display =
-        isAdmin ? "block" : "none";
+    function toggleUI() {
+        // PROJECT CREATE
+        document.getElementById("projectForm").style.display =
+            isAdmin ? "block" : "none";
 
-    // MEMBER ADD
-    document.getElementById("memberForm").style.display =
-        isAdmin ? "flex" : "none";
+        // MEMBER ADD
+        document.getElementById("memberForm").style.display =
+            isAdmin ? "flex" : "none";
 
-    // ASSIGN DROPDOWN
-    document.getElementById("assignUser").style.display =
-        isAdmin ? "block" : "none";
+        // ASSIGN DROPDOWN
+        document.getElementById("assignUser").style.display =
+            isAdmin ? "block" : "none";
 
-    // TASK CREATE
-    document.getElementById("taskForm").style.display =
-        isAdmin ? "block" : "none";
-}
+        // TASK CREATE
+        document.getElementById("taskForm").style.display =
+            isAdmin ? "block" : "none";
+    }
     //  LOGOUT 
 
     function logout() {
         localStorage.clear();
         window.location.href = "/login-page";
     }
-    function toggleUI() {
-        // ADMIN controls
-        document.getElementById("projectForm").style.display = isAdmin ? "block" : "none";
-        document.getElementById("memberForm").style.display = isAdmin ? "flex" : "none";
-        document.getElementById("assignUser").style.display = isAdmin ? "block" : "none";
-
-        // TASK FORM (create)
-        document.getElementById("taskForm").style.display = isAdmin ? "block" : "none";
-    }
+    
     //  INIT 
     loadProjects();
 </script>
