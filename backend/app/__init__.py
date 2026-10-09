@@ -9,6 +9,7 @@ from flask import Flask, jsonify
 
 from .config import config_from_environment, validate_required_settings
 from .extensions import db, jwt, migrate
+from . import models  # noqa: F401 - registers model metadata for migrations
 
 
 def create_app(
