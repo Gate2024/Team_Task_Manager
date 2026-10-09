@@ -1,0 +1,106 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { Landing } from './pages/Landing';
+import { Register } from './pages/Register';
+import { Login } from './pages/Login';
+import { Dashboard } from './pages/Dashboard';
+import { Projects } from './pages/Projects';
+
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0B0F19] text-slate-500">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin w-8 h-8 border-3 border-indigo-600 dark:border-indigo-500 border-t-transparent rounded-full" />
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Authenticating session...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+function PublicOnlyRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0B0F19] text-slate-500">
+        <div className="animate-spin w-8 h-8 border-3 border-indigo-600 dark:border-indigo-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
+export function App() {
+  return (
+    <Router>
+      <ThemeProvider>
+        <AuthProvider>
+          <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-[#0B0F19] dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+            <Routes>
+              {/* Public High-Converting SaaS Landing Page */}
+              <Route path="/" element={<Landing />} />
+
+              {/* Public-Only Authentication Pages with Dedicated Auth Navbar */}
+              <Route
+                path="/login"
+                element={
+                  <PublicOnlyRoute>
+                    <Login />
+                  </PublicOnlyRoute>
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  <PublicOnlyRoute>
+                    <Register />
+                  </PublicOnlyRoute>
+                }
+              />
+
+              {/* Protected Workspace Layouts (Render AppShell internally) */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/projects"
+                element={
+                  <ProtectedRoute>
+                    <Projects />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
+        </AuthProvider>
+      </ThemeProvider>
+    </Router>
+  );
+}
+
+export default App;

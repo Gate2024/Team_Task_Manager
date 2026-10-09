@@ -1,1 +1,7 @@
-"""Task blueprint package; routes are added in Phase 3."""
+"""Tasks blueprint package."""
+
+from flask import Blueprint
+
+tasks_bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
+
+from . import routes  # noqa: E402, F401

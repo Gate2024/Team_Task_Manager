@@ -31,7 +31,8 @@ htmlcov/
 .ruff_cache/
 .mypy_cache/
 
-# Frontend
+# Frontend and Node dependencies / artifacts
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/

@@ -1,1 +1,7 @@
-"""Authentication blueprint package; routes are added in Phase 3."""
+"""Authentication blueprint package."""
+
+from flask import Blueprint
+
+auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
+
+from . import routes  # noqa: E402, F401
