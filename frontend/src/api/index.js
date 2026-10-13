@@ -8,6 +8,7 @@ export const authApi = {
   login: (credentials) => apiClient('/api/auth/login', { method: 'POST', data: credentials }),
   register: (userData) => apiClient('/api/auth/register', { method: 'POST', data: userData }),
   logout: () => apiClient('/api/auth/logout', { method: 'POST' }),
+  refreshToken: () => apiClient('/api/auth/refresh', { method: 'POST' }),
   getCurrentUser: () => apiClient('/api/auth/me'),
   updateProfile: (profileData) => apiClient('/api/auth/profile', { method: 'PATCH', data: profileData }),
   uploadProfileImage: (formData) => apiClient('/api/auth/profile/image', { method: 'POST', data: formData }),

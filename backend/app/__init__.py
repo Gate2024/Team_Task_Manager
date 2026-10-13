@@ -5,8 +5,16 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from flask import Flask, jsonify
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from datetime import datetime, timezone
+from flask import Flask, jsonify, request
+from flask_jwt_extended import (
+    create_access_token,
+    get_jwt,
+    get_jwt_identity,
+    jwt_required,
+    set_access_cookies,
+    verify_jwt_in_request,
+)
 
 from .config import config_from_environment, validate_required_settings
 from .extensions import db, jwt, migrate
@@ -33,6 +41,74 @@ def create_app(
     migrate.init_app(app, db)
     jwt.init_app(app)
 
+    # Configure JWT error responses with structured, safe error codes
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_payload):
+        token_type = jwt_payload.get("type", "access")
+        return jsonify(
+            code="token_expired",
+            message=f"The {token_type} token has expired",
+            token_type=token_type,
+        ), 401
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error_string):
+        return jsonify(
+            code="invalid_token",
+            message="Invalid or malformed authentication token",
+        ), 401
+
+    @jwt.unauthorized_loader
+    def unauthorized_callback(error_string):
+        return jsonify(
+            code="authorization_required",
+            message="Authentication credentials are required to access this resource",
+        ), 401
+
+    @jwt.revoked_token_loader
+    def revoked_token_callback(jwt_header, jwt_payload):
+        return jsonify(
+            code="token_revoked",
+            message="Authentication session has been revoked",
+        ), 401
+
+    @jwt.needs_fresh_token_loader
+    def needs_fresh_token_callback(jwt_header, jwt_payload):
+        return jsonify(
+            code="fresh_token_required",
+            message="A fresh login is required for this action",
+        ), 401
+
+    # Implicit sliding session renewal during active usage
+    @app.after_request
+    def refresh_expiring_jwts(response):
+        """Silently slide the access token forward when nearing expiration during active usage."""
+        if request.path in ("/api/auth/logout", "/api/auth/refresh"):
+            return response
+
+        # Only refresh on successful responses (do not set cookies on errors or redirects)
+        if response.status_code >= 400 or response.status_code == 302:
+            return response
+
+        try:
+            verify_jwt_in_request(optional=True)
+            jwt_data = get_jwt()
+            if jwt_data and jwt_data.get("type") == "access":
+                exp_timestamp = jwt_data.get("exp")
+                if exp_timestamp:
+                    now = datetime.now(timezone.utc)
+                    target_timestamp = datetime.fromtimestamp(exp_timestamp, timezone.utc)
+                    # Refresh if remaining time is under 5 minutes (300 seconds)
+                    if (target_timestamp - now).total_seconds() < 300:
+                        user_id = jwt_data.get("sub")
+                        if user_id:
+                            new_access_token = create_access_token(identity=str(user_id))
+                            set_access_cookies(response, new_access_token)
+        except Exception:
+            pass
+
+        return response
+
     # Register modular blueprints
     app.register_blueprint(auth_bp)
     app.register_blueprint(projects_bp)
@@ -42,6 +118,7 @@ def create_app(
     def health():
         return jsonify(status="ok"), 200
 
+    @app.get("/api/uploads/<path:filename>")
     @app.get("/uploads/<path:filename>")
     def uploaded_files(filename: str):
         from .storage import get_storage

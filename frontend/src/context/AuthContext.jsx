@@ -19,6 +19,12 @@ export function AuthProvider({ children }) {
       }
     }
     loadUser();
+
+    const handleSessionEnded = () => {
+      setUser(null);
+    };
+    window.addEventListener('auth:session-ended', handleSessionEnded);
+    return () => window.removeEventListener('auth:session-ended', handleSessionEnded);
   }, []);
 
   const login = async (credentials) => {

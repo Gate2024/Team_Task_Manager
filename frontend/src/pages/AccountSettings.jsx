@@ -37,6 +37,7 @@ export function AccountSettings() {
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState(null);
   const [isRemovingPhoto, setIsRemovingPhoto] = useState(false);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
 
   // Security / Password State
   const [passwordForm, setPasswordForm] = useState({
@@ -77,6 +78,12 @@ export function AccountSettings() {
       }
     };
   }, [imagePreview]);
+
+  // Reset image load error state whenever the avatar source changes
+  const activeAvatarSrc = imagePreview || user?.profile_image_url;
+  useEffect(() => {
+    setAvatarLoadError(false);
+  }, [activeAvatarSrc]);
 
   // ----------------------------------------------------
   // PROFILE INFORMATION HANDLERS
@@ -298,8 +305,6 @@ export function AccountSettings() {
     }
   };
 
-  const activeAvatarSrc = imagePreview || user?.profile_image_url;
-
   return (
     <AppShell breadcrumb="Account Settings">
       <div className="max-w-4xl mx-auto space-y-8 pb-16 animate-fadeIn">
@@ -355,14 +360,13 @@ export function AccountSettings() {
                 {/* Avatar Display */}
                 <div className="relative group">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-md flex-shrink-0">
-                    {activeAvatarSrc ? (
+                    {activeAvatarSrc && !avatarLoadError ? (
                       <img
+                        key={activeAvatarSrc}
                         src={activeAvatarSrc}
                         alt={`${user?.name || 'User'}'s profile avatar`}
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
+                        onError={() => setAvatarLoadError(true)}
                       />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-600 text-white font-extrabold text-2xl flex items-center justify-center select-none">

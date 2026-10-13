@@ -69,9 +69,12 @@ def validate_image_file(file_storage) -> tuple[bool, str]:
 class LocalStorageProvider:
     """Saves files to the local uploads directory and serves them via static route."""
 
-    def __init__(self, base_dir: str | None = None, public_url_prefix: str = "/uploads"):
+    def __init__(self, base_dir: str | None = None, public_url_prefix: str = "/api/uploads"):
         if not base_dir:
-            base_dir = os.path.join(os.getcwd(), "uploads")
+            base_dir = os.getenv("UPLOAD_FOLDER")
+        if not base_dir:
+            backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            base_dir = os.path.join(backend_root, "uploads")
         self.base_dir = os.path.abspath(base_dir)
         self.avatars_dir = os.path.join(self.base_dir, "avatars")
         os.makedirs(self.avatars_dir, exist_ok=True)
@@ -91,10 +94,18 @@ class LocalStorageProvider:
 
     def delete(self, file_url_or_path: str) -> bool:
         """Delete file associated with the public URL path."""
-        if not file_url_or_path or not file_url_or_path.startswith(self.public_url_prefix):
+        if not file_url_or_path:
             return False
 
-        rel_path = file_url_or_path[len(self.public_url_prefix):].lstrip("/\\")
+        rel_path = None
+        for prefix in ("/api/uploads", "/uploads", self.public_url_prefix):
+            if file_url_or_path.startswith(prefix):
+                rel_path = file_url_or_path[len(prefix):].lstrip("/\\")
+                break
+
+        if rel_path is None:
+            return False
+
         full_path = os.path.abspath(os.path.join(self.base_dir, rel_path))
 
         # Security check: Ensure target path remains within base_dir
@@ -119,7 +130,7 @@ class LocalStorageProvider:
         if not full_folder.startswith(self.base_dir):
             return {"message": "Invalid file path"}, 400
 
-        return send_from_directory(full_folder, filename)
+        return send_from_directory(full_folder, filename, max_age=31536000)
 
 
 class S3StorageProvider:

@@ -33,8 +33,11 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-replace-with-a-different-random-secret-of-at-least-32-bytes}
       JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-false}
       JWT_ACCESS_TOKEN_MINUTES: ${JWT_ACCESS_TOKEN_MINUTES:-15}
+      JWT_REFRESH_TOKEN_DAYS: ${JWT_REFRESH_TOKEN_DAYS:-30}
     ports:
       - "5000:5000"
+    volumes:
+      - task_manager_uploads_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -52,3 +55,4 @@ services:
 
 volumes:
   task_manager_postgres_data:
+  task_manager_uploads_data:

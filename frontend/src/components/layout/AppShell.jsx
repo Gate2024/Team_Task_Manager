@@ -16,6 +16,11 @@ export function AppShell({ children, breadcrumb = 'Dashboard', onNewAction }) {
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.profile_image_url]);
 
   // Ctrl+K / Cmd+K global search shortcut listener
   useEffect(() => {
@@ -372,14 +377,13 @@ export function AppShell({ children, breadcrumb = 'Dashboard', onNewAction }) {
                 className="flex items-center gap-2.5 p-1 sm:px-2.5 sm:py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
               >
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-bold text-xs flex items-center justify-center shadow-sm flex-shrink-0">
-                  {user?.profile_image_url ? (
+                  {user?.profile_image_url && !avatarError ? (
                     <img
+                      key={user.profile_image_url}
                       src={user.profile_image_url}
                       alt={user?.name || 'Account'}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
+                      onError={() => setAvatarError(true)}
                     />
                   ) : (
                     getInitials(user?.name)

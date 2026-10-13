@@ -46,7 +46,17 @@ def test_profile_image_workflow_and_account_deletion(client):
     assert res_upload.status_code == 200
     user_data = res_upload.get_json()["user"]
     assert user_data["profile_image_url"] is not None
-    assert user_data["profile_image_url"].startswith("/uploads/avatars/")
+    assert user_data["profile_image_url"].startswith("/api/uploads/avatars/")
+
+    # Verify uploaded image is directly accessible and served with correct Content-Type
+    img_get = client.get(user_data["profile_image_url"])
+    assert img_get.status_code == 200
+    assert "image/png" in img_get.content_type
+
+    # Verify fallback /uploads/ route also serves the file
+    legacy_url = user_data["profile_image_url"].replace("/api/uploads/", "/uploads/")
+    legacy_get = client.get(legacy_url)
+    assert legacy_get.status_code == 200
 
     # 5. Check GET /api/auth/me reflects the new avatar
     me_res = client.get("/api/auth/me")

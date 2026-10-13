@@ -11,6 +11,11 @@ for p in (str(backend_dir), str(root_dir)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
+# Auto-detect local virtualenv site-packages if running in global Python interpreter
+venv_site_packages = root_dir / "venv" / "Lib" / "site-packages"
+if venv_site_packages.exists() and str(venv_site_packages) not in sys.path:
+    sys.path.insert(0, str(venv_site_packages))
+
 # Explicitly load .env from repository root or backend directory
 if (root_dir / ".env").exists():
     load_dotenv(root_dir / ".env")

@@ -6,9 +6,11 @@ import re
 from flask import jsonify, request
 from flask_jwt_extended import (
     create_access_token,
+    create_refresh_token,
     get_jwt_identity,
     jwt_required,
     set_access_cookies,
+    set_refresh_cookies,
     unset_jwt_cookies,
 )
 from marshmallow import ValidationError
@@ -103,11 +105,38 @@ def login():
         return jsonify(message="Invalid email or password"), 401
 
     access_token = create_access_token(identity=str(user.id))
+    refresh_token = create_refresh_token(identity=str(user.id))
     response = jsonify(
         message="Login successful",
         user=user_schema.dump(user),
     )
     set_access_cookies(response, access_token)
+    set_refresh_cookies(response, refresh_token)
+    return response, 200
+
+
+@auth_bp.post("/refresh")
+@jwt_required(refresh=True)
+def refresh_session():
+    """Silently renew the access token using a valid refresh token cookie."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id))
+    if not user:
+        response = jsonify(
+            code="user_not_found",
+            message="User session is no longer valid",
+        )
+        unset_jwt_cookies(response)
+        return response, 401
+
+    new_access_token = create_access_token(identity=str(user.id))
+    new_refresh_token = create_refresh_token(identity=str(user.id))
+    response = jsonify(
+        message="Session refreshed successfully",
+        user=user_schema.dump(user),
+    )
+    set_access_cookies(response, new_access_token)
+    set_refresh_cookies(response, new_refresh_token)
     return response, 200
 
 

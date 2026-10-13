@@ -44,13 +44,19 @@ class Config:
     JWT_COOKIE_CSRF_PROTECT = True
     JWT_CSRF_METHODS = ("POST", "PUT", "PATCH", "DELETE")
     JWT_ACCESS_CSRF_HEADER_NAME = "X-CSRF-TOKEN"
+    JWT_REFRESH_CSRF_HEADER_NAME = "X-CSRF-TOKEN"
     JWT_COOKIE_SECURE = _as_bool(os.getenv("JWT_COOKIE_SECURE"), default=True)
     JWT_COOKIE_SAMESITE = "Lax"
-    JWT_SESSION_COOKIE = True
+    JWT_SESSION_COOKIE = False
     JWT_ACCESS_COOKIE_NAME = "access_token_cookie"
     JWT_ACCESS_CSRF_COOKIE_NAME = "csrf_access_token"
+    JWT_REFRESH_COOKIE_NAME = "refresh_token_cookie"
+    JWT_REFRESH_CSRF_COOKIE_NAME = "csrf_refresh_token"
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
         minutes=int(os.getenv("JWT_ACCESS_TOKEN_MINUTES", "15"))
+    )
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(
+        days=int(os.getenv("JWT_REFRESH_TOKEN_DAYS", "30"))
     )
 
 
@@ -58,6 +64,7 @@ class DevelopmentConfig(Config):
     """Local development configuration with the debugger kept disabled."""
 
     DEBUG = False
+    JWT_COOKIE_SECURE = _as_bool(os.getenv("JWT_COOKIE_SECURE"), default=False)
 
 
 class TestingConfig(Config):

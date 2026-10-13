@@ -15,6 +15,15 @@ export function Login() {
   const [serverError, setServerError] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  React.useEffect(() => {
+    const handleSessionEnded = (e) => {
+      const msg = e.detail?.message || 'Your session has ended. Please sign in again.';
+      setServerError(msg);
+    };
+    window.addEventListener('auth:session-ended', handleSessionEnded);
+    return () => window.removeEventListener('auth:session-ended', handleSessionEnded);
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim() || !password) return;
