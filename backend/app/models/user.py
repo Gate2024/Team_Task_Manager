@@ -18,6 +18,7 @@ class User(TimestampMixin, db.Model):
     email: Mapped[str] = mapped_column(String(254), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     mobile_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    profile_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     owned_projects: Mapped[list["Project"]] = relationship(
         back_populates="owner", foreign_keys="Project.owner_id", passive_deletes=True

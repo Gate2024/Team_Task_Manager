@@ -66,7 +66,133 @@ def list_tasks():
             seen.add(t.id)
             deduped.append(t)
 
-    return jsonify(tasks=task_schema.dump(deduped, many=True)), 200
+    total = len(deduped)
+    page = request.args.get("page", type=int)
+    limit = request.args.get("limit", default=20, type=int)
+
+    if page is not None and page > 0:
+        import math
+        pages = max(1, math.ceil(total / limit)) if limit > 0 else 1
+        start = (page - 1) * limit
+        end = start + limit
+        paged = deduped[start:end]
+        return jsonify(
+            tasks=task_schema.dump(paged, many=True),
+            pagination={
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "pages": pages,
+            },
+        ), 200
+
+    return jsonify(
+        tasks=task_schema.dump(deduped, many=True),
+        pagination={
+            "page": 1,
+            "limit": total,
+            "total": total,
+            "pages": 1,
+        },
+    ), 200
+
+
+@tasks_bp.patch("/<int:task_id>")
+@jwt_required()
+def update_task(task_id: int):
+    """Update task details with role-based field restrictions."""
+    user_id = int(get_jwt_identity())
+    task = db.session.get(Task, task_id)
+    if not task:
+        return jsonify(message="Task not found"), 404
+
+    project = db.session.get(Project, task.project_id)
+    membership = db.session.execute(
+        db.select(ProjectMember).where(
+            ProjectMember.project_id == task.project_id,
+            ProjectMember.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+
+    is_owner = project.owner_id == user_id or (membership and membership.role == "owner")
+    is_admin = membership and membership.role == "admin"
+    is_owner_or_admin = is_owner or is_admin
+    is_assignee = task.assigned_to == user_id
+
+    # Outsiders or non-assigned members have no edit rights
+    if not (is_owner_or_admin or is_assignee):
+        return jsonify(message="Forbidden: You do not have permission to modify this task"), 403
+
+    data = request.get_json(silent=True) or {}
+
+    # If user is only assigned member (not owner/admin), enforce field restrictions
+    if not is_owner_or_admin:
+        restricted_fields = {"title", "priority", "assigned_to", "due_date"}
+        attempted_restricted = restricted_fields.intersection(data.keys())
+        if attempted_restricted:
+            return jsonify(
+                message="Assigned members can only update task description and status"
+            ), 403
+
+    if "title" in data:
+        title = str(data["title"]).strip()
+        if not title:
+            return jsonify(message="Task title cannot be empty"), 400
+        if len(title) > 100:
+            return jsonify(message="Task title must not exceed 100 characters"), 400
+        task.title = title
+
+    if "description" in data:
+        task.description = str(data["description"] or "").strip()
+
+    if "status" in data:
+        status = data["status"]
+        if status not in ("todo", "in_progress", "done"):
+            return jsonify(message="Status must be one of: todo, in_progress, done"), 400
+        task.status = status
+
+    if "priority" in data:
+        priority = data["priority"]
+        if priority not in ("low", "medium", "high", "urgent"):
+            return jsonify(message="Priority must be one of: low, medium, high, urgent"), 400
+        task.priority = priority
+
+    if "assigned_to" in data:
+        assigned_to = data["assigned_to"]
+        if assigned_to is not None and str(assigned_to).strip() != "":
+            try:
+                assigned_to_id = int(assigned_to)
+            except (ValueError, TypeError):
+                return jsonify(message="Invalid assigned_to user id"), 400
+            # Validate assigned user belongs to the project
+            assignee_member = db.session.execute(
+                db.select(ProjectMember).where(
+                    ProjectMember.project_id == task.project_id,
+                    ProjectMember.user_id == assigned_to_id,
+                )
+            ).scalar_one_or_none()
+            if not assignee_member and project.owner_id != assigned_to_id:
+                return jsonify(message="Assigned user must be an active member of this project"), 400
+            task.assigned_to = assigned_to_id
+        else:
+            task.assigned_to = None
+
+    if "due_date" in data:
+        due_date = data["due_date"]
+        if due_date:
+            try:
+                from datetime import date
+                if isinstance(due_date, str):
+                    task.due_date = date.fromisoformat(due_date)
+                else:
+                    task.due_date = due_date
+            except (ValueError, TypeError):
+                return jsonify(message="Invalid due_date format (must be YYYY-MM-DD)"), 400
+        else:
+            task.due_date = None
+
+    db.session.commit()
+    return jsonify(message="Task updated successfully", task=task_schema.dump(task)), 200
 
 
 @tasks_bp.patch("/<int:task_id>/status")

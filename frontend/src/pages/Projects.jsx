@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { projectsApi } from '../api';
+import { useToast } from '../context/ToastContext';
 import { AppShell } from '../components/layout/AppShell';
 import { ProjectCard } from '../components/ProjectCard';
 
 export function Projects() {
+  const toast = useToast();
   const [projects, setProjects] = useState([]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -42,9 +44,12 @@ export function Projects() {
       setName('');
       setDescription('');
       setShowCreateForm(false);
+      toast.success('Project created successfully.');
       await loadProjects();
     } catch (err) {
-      setError(err.data?.message || err.message || 'Failed to create project');
+      const msg = err.data?.message || err.message || 'Failed to create project';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setCreating(false);
     }
@@ -125,7 +130,11 @@ export function Projects() {
         )}
 
         {loading ? (
-          <div className="text-center py-12 text-sm text-slate-500">Loading projects...</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="h-44 bg-slate-100 dark:bg-slate-900/40 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-800" />
+            ))}
+          </div>
         ) : projects.length === 0 ? (
           <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center">
             <h3 className="text-base font-bold text-slate-900 dark:text-white">No projects created yet</h3>

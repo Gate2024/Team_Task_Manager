@@ -99,6 +99,13 @@ export function Register() {
         },
       });
     } catch (err) {
+      if (err.data?.errors && typeof err.data.errors === 'object') {
+        const fieldErrors = {};
+        for (const [key, msgs] of Object.entries(err.data.errors)) {
+          fieldErrors[key] = Array.isArray(msgs) ? msgs[0] : msgs;
+        }
+        setValidationErrors((prev) => ({ ...prev, ...fieldErrors }));
+      }
       setServerError(
         err.data?.message || err.message || 'Registration failed. Please try again.'
       );

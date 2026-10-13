@@ -16,3 +16,4 @@ class RegisterSchema(Schema):
     name = fields.Str(required=True, validate=validate.Length(min=1, max=100))
     email = fields.Email(required=True, validate=validate.Length(max=254))
     password = fields.Str(required=True, validate=validate.Length(min=8))
+    mobile_number = fields.Str(allow_none=True, load_default=None)

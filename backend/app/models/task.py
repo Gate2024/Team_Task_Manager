@@ -17,7 +17,11 @@ class Task(TimestampMixin, db.Model):
         CheckConstraint(
             "status IN ('todo', 'in_progress', 'done')", name="status_allowed"
         ),
+        CheckConstraint(
+            "priority IN ('low', 'medium', 'high', 'urgent')", name="priority_allowed"
+        ),
         Index("ix_tasks_project_status", "project_id", "status"),
+        Index("ix_tasks_project_priority", "project_id", "priority"),
         Index("ix_tasks_assignee_status", "assigned_to", "status"),
     )
 
@@ -28,6 +32,9 @@ class Task(TimestampMixin, db.Model):
     )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="todo", server_default="todo"
+    )
+    priority: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="medium", server_default="medium"
     )
     project_id: Mapped[int] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=False

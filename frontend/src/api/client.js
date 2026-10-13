@@ -27,8 +27,12 @@ export async function apiClient(endpoint, { method = 'GET', data, headers = {}, 
   };
 
   if (data !== undefined) {
-    config.headers['Content-Type'] = 'application/json';
-    config.body = JSON.stringify(data);
+    if (typeof FormData !== 'undefined' && data instanceof FormData) {
+      config.body = data;
+    } else {
+      config.headers['Content-Type'] = 'application/json';
+      config.body = JSON.stringify(data);
+    }
   }
 
   // Attach CSRF header on unsafe mutation methods per Flask-JWT-Extended double-submit protection

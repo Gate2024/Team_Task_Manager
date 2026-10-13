@@ -25,8 +25,17 @@ class ProjectSchema(Schema):
 
     id = fields.Int(dump_only=True)
     name = fields.Str(required=True, validate=validate.Length(min=1, max=100))
+    description = fields.Str(load_default="", dump_default="")
     owner_id = fields.Int(dump_only=True)
     owner = fields.Nested(UserSummarySchema, dump_only=True)
     memberships = fields.List(fields.Nested(ProjectMemberSchema), dump_only=True)
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
+
+
+class ProjectUpdateSchema(Schema):
+    """Schema for updating project details."""
+
+    name = fields.Str(validate=validate.Length(min=1, max=100))
+    description = fields.Str(validate=validate.Length(max=1000))
+

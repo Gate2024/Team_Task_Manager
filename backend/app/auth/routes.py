@@ -14,8 +14,9 @@ from flask_jwt_extended import (
 from marshmallow import ValidationError
 
 from ..extensions import db
-from ..models import User
+from ..models import Project, ProjectMember, Task, User
 from ..schemas import LoginSchema, RegisterSchema, UserSchema
+from ..storage import get_storage, validate_image_file
 from . import auth_bp
 
 login_schema = LoginSchema()
@@ -47,6 +48,17 @@ def register():
     email = data["email"].strip().lower()
     name = data["name"].strip()
     password = data["password"]
+    raw_mobile = data.get("mobile_number")
+    mobile_number = None
+
+    if raw_mobile and str(raw_mobile).strip():
+        cleaned_mobile = str(raw_mobile).strip()
+        if not validate_mobile_format(cleaned_mobile):
+            return jsonify(
+                message="Mobile number must contain between 10 and 15 digits",
+                errors={"mobile_number": ["Mobile number must contain between 10 and 15 digits"]},
+            ), 400
+        mobile_number = cleaned_mobile
 
     existing_user = db.session.execute(
         db.select(User).where(User.email == email)
@@ -55,7 +67,7 @@ def register():
     if existing_user:
         return jsonify(message="An account with this email address already exists"), 409
 
-    new_user = User(name=name, email=email)
+    new_user = User(name=name, email=email, mobile_number=mobile_number)
     new_user.set_password(password)
 
     db.session.add(new_user)
@@ -176,3 +188,109 @@ def update_profile():
         message="Profile updated successfully",
         user=user_schema.dump(user),
     ), 200
+
+
+@auth_bp.post("/profile/image")
+@jwt_required()
+def upload_profile_image():
+    """Upload and set a new profile avatar image."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id))
+    if not user:
+        response = jsonify(message="User not found")
+        unset_jwt_cookies(response)
+        return response, 401
+
+    file = request.files.get("image") or request.files.get("file")
+    if not file:
+        return jsonify(message="No image file provided in request"), 400
+
+    is_valid, error_msg = validate_image_file(file)
+    if not is_valid:
+        status_code = 413 if "5 MB" in error_msg else 400
+        return jsonify(message=error_msg), status_code
+
+    storage = get_storage()
+
+    # Delete previous profile image if one exists
+    if user.profile_image_url:
+        storage.delete(user.profile_image_url)
+
+    # Save new image and update database record
+    new_image_url = storage.save(file, subfolder="avatars")
+    user.profile_image_url = new_image_url
+    db.session.commit()
+
+    return jsonify(
+        message="Profile photo updated successfully",
+        user=user_schema.dump(user),
+    ), 200
+
+
+@auth_bp.delete("/profile/image")
+@jwt_required()
+def remove_profile_image():
+    """Remove user avatar image and revert to initials."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id))
+    if not user:
+        response = jsonify(message="User not found")
+        unset_jwt_cookies(response)
+        return response, 401
+
+    if user.profile_image_url:
+        storage = get_storage()
+        storage.delete(user.profile_image_url)
+        user.profile_image_url = None
+        db.session.commit()
+
+    return jsonify(
+        message="Profile photo removed successfully",
+        user=user_schema.dump(user),
+    ), 200
+
+
+@auth_bp.delete("/account")
+@jwt_required()
+def delete_account():
+    """Permanently delete user account and associated personal resources."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id))
+    if not user:
+        response = jsonify(message="User not found")
+        unset_jwt_cookies(response)
+        return response, 401
+
+    data = request.get_json(silent=True) or {}
+    password = data.get("password") or data.get("current_password")
+    if not password:
+        return jsonify(message="Password is required to confirm account deletion"), 400
+    if not user.check_password(password):
+        return jsonify(message="Incorrect password"), 401
+
+    # Clean up assigned tasks: set assigned_to = None
+    db.session.execute(
+        db.update(Task).where(Task.assigned_to == user.id).values(assigned_to=None)
+    )
+    # Remove project memberships
+    db.session.execute(
+        db.delete(ProjectMember).where(ProjectMember.user_id == user.id)
+    )
+    # Delete owned projects
+    owned_projects = db.session.execute(
+        db.select(Project).where(Project.owner_id == user.id)
+    ).scalars().all()
+    for proj in owned_projects:
+        db.session.delete(proj)
+
+    # Clean up avatar file if stored
+    if user.profile_image_url:
+        storage = get_storage()
+        storage.delete(user.profile_image_url)
+
+    db.session.delete(user)
+    db.session.commit()
+
+    response = jsonify(message="Account successfully deleted")
+    unset_jwt_cookies(response)
+    return response, 200

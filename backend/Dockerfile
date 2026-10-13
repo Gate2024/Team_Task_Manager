@@ -17,4 +17,4 @@ COPY . .
 
 EXPOSE 5000
 
-CMD ["python", "-m", "flask", "--app", "wsgi", "run", "--host=0.0.0.0", "--port=5000"]
+CMD ["sh", "-c", "flask db upgrade && gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --threads 4"]

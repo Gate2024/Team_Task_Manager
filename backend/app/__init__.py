@@ -42,11 +42,17 @@ def create_app(
     def health():
         return jsonify(status="ok"), 200
 
+    @app.get("/uploads/<path:filename>")
+    def uploaded_files(filename: str):
+        from .storage import get_storage
+        return get_storage().serve(filename)
+
     @app.get("/api/dashboard/stats")
     @jwt_required()
     def dashboard_stats():
         """Aggregated workspace statistics for active dashboard."""
         user_id = int(get_jwt_identity())
+        from datetime import date
         from .models import Project, ProjectMember, Task
 
         memberships = db.session.execute(
@@ -89,24 +95,64 @@ def create_app(
             )
 
         seen = set()
-        total_tasks = 0
-        in_progress = 0
-        completed = 0
-
+        deduped = []
         for t in tasks:
             if t.id not in seen:
                 seen.add(t.id)
-                total_tasks += 1
+                deduped.append(t)
+
+        total_tasks = len(deduped)
+        today = date.today()
+        todo = 0
+        in_progress = 0
+        completed = 0
+        overdue = 0
+        unassigned = 0
+
+        my_tasks = 0
+        my_due_today = 0
+        my_in_progress = 0
+        my_completed = 0
+        my_overdue = 0
+
+        for t in deduped:
+            if t.status == "todo":
+                todo += 1
+            elif t.status == "in_progress":
+                in_progress += 1
+            elif t.status == "done":
+                completed += 1
+
+            if t.due_date and t.status != "done" and t.due_date < today:
+                overdue += 1
+
+            if t.assigned_to is None:
+                unassigned += 1
+
+            if t.assigned_to == user_id:
+                my_tasks += 1
+                if t.due_date and t.due_date == today:
+                    my_due_today += 1
                 if t.status == "in_progress":
-                    in_progress += 1
+                    my_in_progress += 1
                 elif t.status == "done":
-                    completed += 1
+                    my_completed += 1
+                if t.due_date and t.status != "done" and t.due_date < today:
+                    my_overdue += 1
 
         return jsonify(
             active_projects=active_projects,
             total_tasks=total_tasks,
+            todo=todo,
             in_progress=in_progress,
             completed=completed,
+            overdue=overdue,
+            unassigned=unassigned,
+            my_tasks=my_tasks,
+            my_due_today=my_due_today,
+            my_in_progress=my_in_progress,
+            my_completed=my_completed,
+            my_overdue=my_overdue,
         ), 200
 
     return app
