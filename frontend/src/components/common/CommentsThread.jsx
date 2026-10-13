@@ -35,7 +35,8 @@ export function CommentsThread({ taskId = null, caseId = null, title = 'Discussi
   }, [taskId, caseId]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
+    if (e?.stopPropagation) e.stopPropagation();
     const cleanBody = body.trim();
     if (!cleanBody) return;
 
@@ -181,24 +182,31 @@ export function CommentsThread({ taskId = null, caseId = null, title = 'Discussi
       </div>
 
       {/* Composer */}
-      <form onSubmit={handleSubmit} className="space-y-2 pt-1">
+      <div className="space-y-2 pt-1">
         <textarea
           rows={2}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="Write a message or update... Type @name to mention"
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              e.preventDefault();
+              handleSubmit(e);
+            }
+          }}
+          placeholder="Write a message or update... Type @name to mention (Ctrl+Enter to send)"
           className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none"
         />
         <div className="flex justify-end">
           <button
-            type="submit"
+            type="button"
+            onClick={handleSubmit}
             disabled={submitting || !body.trim()}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-sm transition-all"
           >
             {submitting ? 'Sending...' : 'Send Message'}
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

@@ -113,44 +113,114 @@ def parse_and_notify_mentions(
     if not text or "@" not in text:
         return []
 
-    # Find words following @
-    matches = re.findall(r"@([a-zA-Z0-9_\-\.]+)", text)
-    if not matches:
+    # Find words following @, e.g. @Rahul, @Member2, @john.doe
+    raw_matches = re.findall(r"@([a-zA-Z0-9_\-\.]+)", text)
+    if not raw_matches:
         return []
 
-    notifications = []
-    notified_user_ids = set()
+    # Clean tokens (remove trailing punctuation like dots or commas)
+    clean_mentions: list[str] = []
+    for m in raw_matches:
+        token = m.rstrip(".,;:!?")
+        if token:
+            clean_mentions.append(token)
 
-    for mention in set(matches):
-        # Match user by name (starts with or exact) or email prefix
-        user = db.session.execute(
-            db.select(User).where(
-                db.or_(
-                    User.name.ilike(f"{mention}%"),
-                    User.email.ilike(f"{mention}%"),
-                )
+    if not clean_mentions:
+        return []
+
+    # Deduplicate tokens while preserving order
+    unique_mentions = list(dict.fromkeys(clean_mentions))
+
+    # Resolve candidate project members if project_id is provided
+    candidate_users: list[User] = []
+    if project_id:
+        from ..models import Project
+        project = db.session.get(Project, project_id)
+        if not project:
+            return []
+
+        member_user_ids = db.session.execute(
+            db.select(ProjectMember.user_id).where(
+                ProjectMember.project_id == project_id,
             )
-        ).scalars().first()
+        ).scalars().all()
 
-        if user and user.id != actor.id and user.id not in notified_user_ids:
-            # If project_id is given, verify user is a project member or owner
-            if project_id:
-                is_member = db.session.execute(
-                    db.select(ProjectMember.id).where(
-                        ProjectMember.project_id == project_id,
-                        ProjectMember.user_id == user.id,
-                    )
-                ).scalar_one_or_none()
-                if not is_member:
-                    continue
+        candidate_ids = set(member_user_ids)
+        if project.owner_id:
+            candidate_ids.add(project.owner_id)
 
-            notified_user_ids.add(user.id)
+        # Do not allow actor to mention/notify themselves
+        candidate_ids.discard(actor.id)
+
+        if not candidate_ids:
+            return []
+
+        candidate_users = db.session.execute(
+            db.select(User).where(User.id.in_(candidate_ids))
+        ).scalars().all()
+
+    notifications: list[Notification] = []
+    notified_user_ids: set[int] = set()
+
+    for mention in unique_mentions:
+        m_lower = mention.lower()
+        m_no_space = m_lower.replace(" ", "")
+
+        matched_user: User | None = None
+
+        if project_id:
+            # 1. Exact match on username, full name without spaces, or email prefix
+            for u in candidate_users:
+                u_name_lower = u.name.lower()
+                u_email_lower = u.email.lower()
+                if (
+                    u_name_lower == m_lower
+                    or u_name_lower.replace(" ", "") == m_no_space
+                    or u_email_lower.split("@")[0] == m_lower
+                ):
+                    matched_user = u
+                    break
+
+            # 2. First name match (e.g. Rahul from "Rahul Sharma")
+            if not matched_user:
+                for u in candidate_users:
+                    first_name = u.name.lower().split()[0]
+                    if first_name == m_lower:
+                        matched_user = u
+                        break
+
+            # 3. Prefix match on full name / email prefix
+            if not matched_user:
+                for u in candidate_users:
+                    u_name_lower = u.name.lower()
+                    u_email_lower = u.email.lower()
+                    if (
+                        u_name_lower.startswith(m_lower)
+                        or u_name_lower.replace(" ", "").startswith(m_no_space)
+                        or u_email_lower.startswith(m_lower)
+                    ):
+                        matched_user = u
+                        break
+        else:
+            # Fallback if no project context
+            matched_user = db.session.execute(
+                db.select(User).where(
+                    User.id != actor.id,
+                    db.or_(
+                        User.name.ilike(f"{mention}%"),
+                        User.email.ilike(f"{mention}%"),
+                    ),
+                )
+            ).scalars().first()
+
+        if matched_user and matched_user.id != actor.id and matched_user.id not in notified_user_ids:
+            notified_user_ids.add(matched_user.id)
             n = create_notification(
-                recipient_id=user.id,
+                recipient_id=matched_user.id,
                 actor_id=actor.id,
                 type="comment_mention",
-                title=f"{actor.name} mentioned you",
-                message=f"{actor.name} mentioned you in a comment on {context_title}",
+                title=f"{actor.name} mentioned you in {context_title}",
+                message=f"{actor.name} mentioned you in a comment on {context_title}: {text[:100]}",
                 project_id=project_id,
                 task_id=task_id,
                 case_id=case_id,

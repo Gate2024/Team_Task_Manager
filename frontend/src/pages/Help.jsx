@@ -109,7 +109,7 @@ export function Help() {
 
   return (
     <AppShell breadcrumb="Help & Documentation">
-      <div className="space-y-6 animate-fadeIn pb-12 max-w-4xl mx-auto">
+      <div className="space-y-6 animate-fadeIn pb-12 w-full">
         {/* Header Hero */}
         <div className="bg-gradient-to-tr from-indigo-600 via-indigo-700 to-violet-700 rounded-3xl p-6 sm:p-10 text-white shadow-xl">
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { projectsApi, tasksApi, casesApi, activityApi, reportsApi } from '../api';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../context/ToastContext';
@@ -16,6 +16,8 @@ import { CommentsThread } from '../components/common/CommentsThread';
 
 export function ProjectDetail() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const targetTaskId = searchParams.get('task');
   const projectId = parseInt(id, 10);
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -28,9 +30,6 @@ export function ProjectDetail() {
   const [activity, setActivity] = useState([]);
   const [report, setReport] = useState(null);
   const [selectedCase, setSelectedCase] = useState(null);
-  const [showCaseModal, setShowCaseModal] = useState(false);
-  const [caseFormData, setCaseFormData] = useState({ title: '', description: '', priority: 'medium', due_date: '' });
-  const [caseSubmitting, setCaseSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState(
     () => localStorage.getItem('project_active_tab') || 'overview'
   );
@@ -92,6 +91,18 @@ export function ProjectDetail() {
   useEffect(() => {
     loadWorkspace();
   }, [projectId]);
+
+  // Deep-link auto-open task modal from notification navigation (?task=ID)
+  useEffect(() => {
+    if (targetTaskId && tasks.length > 0) {
+      const taskIdNum = parseInt(targetTaskId, 10);
+      const found = tasks.find((t) => t.id === taskIdNum);
+      if (found) {
+        setSelectedTask(found);
+        setShowTaskModal(true);
+      }
+    }
+  }, [targetTaskId, tasks]);
 
   // Load tab-specific data when activity or reports are opened
   useEffect(() => {
@@ -278,30 +289,6 @@ export function ProjectDetail() {
     toast.success('Member removed from project.');
   };
 
-  const handleCreateProjectCase = async (e) => {
-    e.preventDefault();
-    if (!caseFormData.title.trim()) return;
-    try {
-      setCaseSubmitting(true);
-      const res = await casesApi.create({
-        title: caseFormData.title.trim(),
-        description: caseFormData.description.trim(),
-        project_id: projectId,
-        priority: caseFormData.priority,
-        due_date: caseFormData.due_date || null,
-      });
-      const newCase = res.case || res;
-      setCases((prev) => [newCase, ...prev]);
-      setShowCaseModal(false);
-      setCaseFormData({ title: '', description: '', priority: 'medium', due_date: '' });
-      toast.success('Case created in this project.');
-    } catch (err) {
-      toast.error(err.data?.message || 'Failed to create case');
-    } finally {
-      setCaseSubmitting(false);
-    }
-  };
-
   const handleSelfAssignCase = async (caseId) => {
     try {
       const res = await casesApi.selfAssign(caseId);
@@ -464,11 +451,8 @@ export function ProjectDetail() {
 
               {isOwnerOrAdmin && (
                 <button
-                  onClick={() => {
-                    setSelectedTask(null);
-                    setShowTaskModal(true);
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all"
+                  onClick={() => navigate(`/tasks/new?project_id=${projectId}`)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all active:scale-95"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -648,8 +632,7 @@ export function ProjectDetail() {
               }}
               onDeleteTask={(tid) => setTaskToDelete(tid)}
               onAddTask={(targetStatus) => {
-                setSelectedTask({ status: targetStatus });
-                setShowTaskModal(true);
+                navigate(`/tasks/new?project_id=${projectId}&status=${targetStatus}`);
               }}
               canManage={isOwnerOrAdmin}
               currentUserId={user?.id}
@@ -744,8 +727,8 @@ export function ProjectDetail() {
                 </p>
               </div>
               <button
-                onClick={() => setShowCaseModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20"
+                onClick={() => navigate(`/cases/new?project_id=${projectId}`)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20 active:scale-95"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -766,7 +749,7 @@ export function ProjectDetail() {
                   Create a case to log customer issues, incident reports, or system bug tickets.
                 </p>
                 <button
-                  onClick={() => setShowCaseModal(true)}
+                  onClick={() => navigate(`/cases/new?project_id=${projectId}`)}
                   className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-sm"
                 >
                   Create First Case
@@ -1009,79 +992,7 @@ export function ProjectDetail() {
         )}
       </div>
 
-      {/* Case Creation Modal */}
-      {showCaseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Create Project Case</h3>
-            <p className="text-xs text-slate-500 mb-4">Log a new issue or support ticket for this workspace.</p>
-            <form onSubmit={handleCreateProjectCase} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Title</label>
-                <input
-                  type="text"
-                  required
-                  value={caseFormData.title}
-                  onChange={(e) => setCaseFormData({ ...caseFormData, title: e.target.value })}
-                  placeholder="e.g. Payment gateway 502 error"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Priority</label>
-                  <select
-                    value={caseFormData.priority}
-                    onChange={(e) => setCaseFormData({ ...caseFormData, priority: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Due Date</label>
-                  <input
-                    type="date"
-                    value={caseFormData.due_date}
-                    onChange={(e) => setCaseFormData({ ...caseFormData, due_date: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white"
-                  >
-                  </input>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Description</label>
-                <textarea
-                  rows="3"
-                  value={caseFormData.description}
-                  onChange={(e) => setCaseFormData({ ...caseFormData, description: e.target.value })}
-                  placeholder="Steps to reproduce, customer impact, relevant URLs..."
-                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCaseModal(false)}
-                  className="px-4 py-2 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={caseSubmitting || !caseFormData.title.trim()}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md disabled:opacity-50"
-                >
-                  {caseSubmitting ? 'Creating...' : 'Create Case'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
 
       {/* Case Detail Drawer */}
       {selectedCase && (
@@ -1147,6 +1058,7 @@ export function ProjectDetail() {
         task={selectedTask}
         members={members}
         isMemberOnly={!isOwnerOrAdmin && selectedTask?.assigned_to === user?.id}
+        isReadOnly={!isOwnerOrAdmin && Boolean(selectedTask) && selectedTask?.assigned_to !== user?.id}
         loading={taskModalLoading}
         onSave={handleSaveTask}
         onClose={() => {

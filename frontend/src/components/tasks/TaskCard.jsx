@@ -37,7 +37,7 @@ export function TaskCard({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h4
-                onClick={() => canEdit && onEdit && onEdit(task)}
+                onClick={() => onEdit && onEdit(task)}
                 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition-colors"
               >
                 {task.title}
@@ -195,7 +195,7 @@ export function TaskCard({
 
         {/* Title */}
         <h5
-          onClick={() => canEdit && onEdit && onEdit(task)}
+          onClick={() => onEdit && onEdit(task)}
           className="font-semibold text-slate-900 dark:text-slate-100 text-xs sm:text-sm leading-snug line-clamp-2 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition-colors"
         >
           {task.title}
@@ -281,7 +281,7 @@ export function TaskCard({
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <PriorityBadge priority={task.priority} size="small" />
           <h5
-            onClick={() => canEdit && onEdit && onEdit(task)}
+            onClick={() => onEdit && onEdit(task)}
             className="font-medium text-xs sm:text-sm text-slate-900 dark:text-slate-100 truncate hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
           >
             {task.title}
@@ -341,7 +341,7 @@ export function TaskCard({
 
         {/* Task Title */}
         <h4
-          onClick={() => canEdit && onEdit && onEdit(task)}
+          onClick={() => onEdit && onEdit(task)}
           className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors cursor-pointer"
         >
           {task.title}

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { AuthNavbar } from '../components/layout/AuthNavbar';
+import { PublicLayout } from '../components/layout/PublicLayout';
+import { InteractiveAuthPlayground } from '../components/auth/InteractiveAuthPlayground';
 
 export function Register() {
   const [formData, setFormData] = useState({
@@ -115,18 +116,10 @@ export function Register() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      {/* Dedicated Auth Top Navbar */}
-      <AuthNavbar />
-
-      {/* Main Centered Content Area */}
-      <div className="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        {/* Ambient Radial Background Glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[400px] bg-gradient-to-tr from-indigo-500/15 via-violet-500/15 to-transparent blur-[120px] pointer-events-none rounded-full" />
-        <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[250px] bg-sky-500/10 blur-[90px] pointer-events-none rounded-full" />
-
+    <PublicLayout>
+      <InteractiveAuthPlayground mode="register">
         {/* Auth Glass Card */}
-        <div className="relative w-full max-w-lg bg-white/90 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800/90 rounded-3xl p-8 sm:p-10 shadow-2xl backdrop-blur-2xl transition-all animate-fadeIn">
+        <div className="relative w-full max-w-lg bg-white/95 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800/90 rounded-3xl p-8 sm:p-10 shadow-2xl backdrop-blur-2xl transition-all animate-fadeIn">
           {/* Header */}
           <div className="text-center mb-8">
             <div className="w-12 h-12 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 rounded-2xl flex items-center justify-center mx-auto text-white shadow-lg shadow-indigo-500/25">
@@ -388,8 +381,8 @@ export function Register() {
             </Link>
           </div>
         </div>
-      </div>
-    </div>
+      </InteractiveAuthPlayground>
+    </PublicLayout>
   );
 }
 export default Register;

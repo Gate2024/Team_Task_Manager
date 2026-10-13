@@ -11,7 +11,24 @@ export function AppShell({ children, breadcrumb = 'Dashboard', onNewAction }) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('teamtask_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('teamtask_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -293,7 +310,7 @@ export function AppShell({ children, breadcrumb = 'Dashboard', onNewAction }) {
         {/* Sidebar Footer: Collapse Toggle */}
         <div className="p-3 border-t border-slate-200 dark:border-slate-800/80">
           <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={handleToggleCollapse}
             className="w-full flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
             title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
@@ -564,8 +581,10 @@ export function AppShell({ children, breadcrumb = 'Dashboard', onNewAction }) {
         </header>
 
         {/* Workspace Dynamic Content Container */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-          {children}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto min-w-0 w-full">
+          <div className="w-full max-w-[1600px]">
+            {children}
+          </div>
         </main>
       </div>
 

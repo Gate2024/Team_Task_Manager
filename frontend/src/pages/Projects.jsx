@@ -1,18 +1,14 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { projectsApi } from '../api';
-import { useToast } from '../context/ToastContext';
 import { AppShell } from '../components/layout/AppShell';
 import { ProjectCard } from '../components/ProjectCard';
 
 export function Projects() {
-  const toast = useToast();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [error, setError] = useState(null);
-  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const loadProjects = async () => {
     try {
@@ -30,37 +26,12 @@ export function Projects() {
     loadProjects();
   }, []);
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-
-    setCreating(true);
-    setError(null);
-    try {
-      await projectsApi.create({
-        name: name.trim(),
-        description: description.trim(),
-      });
-      setName('');
-      setDescription('');
-      setShowCreateForm(false);
-      toast.success('Project created successfully.');
-      await loadProjects();
-    } catch (err) {
-      const msg = err.data?.message || err.message || 'Failed to create project';
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      setCreating(false);
-    }
-  };
-
   return (
     <AppShell
       breadcrumb="Projects"
-      onNewAction={() => setShowCreateForm(true)}
+      onNewAction={() => navigate('/projects/new')}
     >
-      <div className="space-y-8 animate-fadeIn">
+      <div className="space-y-8 animate-fadeIn w-full">
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
           <div>
@@ -73,8 +44,8 @@ export function Projects() {
           </div>
 
           <button
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all self-start sm:self-auto"
+            onClick={() => navigate('/projects/new')}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all self-start sm:self-auto active:scale-95"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -82,46 +53,6 @@ export function Projects() {
             <span>New Project</span>
           </button>
         </div>
-
-        {/* Inline Create Form Drawer/Card */}
-        {showCreateForm && (
-          <div className="bg-white dark:bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-xl animate-slideDown">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Create New Project</h3>
-            <form onSubmit={handleCreate} className="space-y-3">
-              <input
-                type="text"
-                placeholder="Project Title (e.g. Core Infrastructure Migration)"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-              />
-              <textarea
-                placeholder="Brief description or purpose..."
-                rows="2"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateForm(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={creating || !name.trim()}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20"
-                >
-                  {creating ? 'Creating...' : 'Save Project'}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
 
         {error && (
           <div className="bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs sm:text-sm p-4 rounded-xl">
@@ -137,13 +68,18 @@ export function Projects() {
           </div>
         ) : projects.length === 0 ? (
           <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">No projects created yet</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-4">
-              Get started by creating your first workspace project above.
+              Get started by creating your first workspace project to organize tasks and team members.
             </p>
             <button
-              onClick={() => setShowCreateForm(true)}
-              className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-xl shadow-md"
+              onClick={() => navigate('/projects/new')}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-md transition-colors"
             >
               Create Project
             </button>
@@ -163,3 +99,5 @@ export function Projects() {
     </AppShell>
   );
 }
+
+export default Projects;

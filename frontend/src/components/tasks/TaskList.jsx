@@ -70,7 +70,7 @@ export function TaskList({
                   {/* Task Title & Description Preview */}
                   <td className="py-3 px-4 max-w-xs">
                     <div
-                      onClick={() => canEditThis && onEditTask && onEditTask(task)}
+                      onClick={() => onEditTask && onEditTask(task)}
                       className="cursor-pointer"
                     >
                       <p className="font-semibold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">

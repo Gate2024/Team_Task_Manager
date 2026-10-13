@@ -93,35 +93,69 @@ def create_task_comment(task_id: int):
     actor_name = actor.name if actor else "Someone"
 
     # Log activity
-    log_activity(
-        action="comment_added",
-        actor_id=user_id,
-        project_id=task.project_id,
-        task_id=task.id,
-        metadata={"task_title": task.title},
-    )
-
-    # Notify assignee if different from author
-    if task.assigned_to and task.assigned_to != user_id:
-        create_notification(
-            recipient_id=task.assigned_to,
+    try:
+        log_activity(
+            action="comment_added",
             actor_id=user_id,
-            type="task_comment",
-            title=f"New comment on {task.title}",
-            message=f"{actor_name} commented: {body[:100]}",
             project_id=task.project_id,
             task_id=task.id,
+            metadata={"task_title": task.title},
         )
+    except Exception:
+        pass
 
-    # Parse @mentions
-    if actor:
-        parse_and_notify_mentions(
-            text=body,
-            actor=actor,
-            project_id=task.project_id,
-            task_id=task.id,
-            context_title=f"task '{task.title}'",
-        )
+    # Side-effect: Notifications (safely isolated so failures never break comment creation)
+    try:
+        notified_recipient_ids: set[int] = set()
+
+        # 1. Parse @mentions and notify mentioned project members
+        if actor:
+            mention_notifications = parse_and_notify_mentions(
+                text=body,
+                actor=actor,
+                project_id=task.project_id,
+                task_id=task.id,
+                context_title=f"task '{task.title}'",
+            )
+            for n in mention_notifications:
+                notified_recipient_ids.add(n.recipient_id)
+
+        # 2. Notify task creator (if creator != author and not already mentioned)
+        if (
+            task.created_by
+            and task.created_by != user_id
+            and task.created_by not in notified_recipient_ids
+        ):
+            create_notification(
+                recipient_id=task.created_by,
+                actor_id=user_id,
+                type="task_comment",
+                title=f"{actor_name} commented on your task '{task.title}'",
+                message=f"{actor_name} commented on task '{task.title}': {body[:100]}",
+                project_id=task.project_id,
+                task_id=task.id,
+            )
+            notified_recipient_ids.add(task.created_by)
+
+        # 3. Notify task assignee (if assignee != author, != creator, and not already mentioned)
+        if (
+            task.assigned_to
+            and task.assigned_to != user_id
+            and task.assigned_to not in notified_recipient_ids
+        ):
+            create_notification(
+                recipient_id=task.assigned_to,
+                actor_id=user_id,
+                type="task_comment",
+                title=f"New comment on {task.title}",
+                message=f"{actor_name} commented: {body[:100]}",
+                project_id=task.project_id,
+                task_id=task.id,
+            )
+            notified_recipient_ids.add(task.assigned_to)
+
+    except Exception:
+        pass
 
     db.session.commit()
     return jsonify(message="Comment added successfully", comment=comment_schema.dump(comment)), 201
@@ -205,35 +239,69 @@ def create_case_comment(case_id: int):
     actor_name = actor.name if actor else "Someone"
 
     # Log activity
-    log_activity(
-        action="comment_added",
-        actor_id=user_id,
-        project_id=c.project_id,
-        case_id=c.id,
-        metadata={"ticket_number": c.ticket_number, "case_title": c.title},
-    )
-
-    # Notify assignee if different from author
-    if c.assigned_to and c.assigned_to != user_id:
-        create_notification(
-            recipient_id=c.assigned_to,
+    try:
+        log_activity(
+            action="comment_added",
             actor_id=user_id,
-            type="case_comment",
-            title=f"New comment on {c.ticket_number}",
-            message=f"{actor_name} commented: {body[:100]}",
             project_id=c.project_id,
             case_id=c.id,
+            metadata={"ticket_number": c.ticket_number, "case_title": c.title},
         )
+    except Exception:
+        pass
 
-    # Parse @mentions
-    if actor:
-        parse_and_notify_mentions(
-            text=body,
-            actor=actor,
-            project_id=c.project_id,
-            case_id=c.id,
-            context_title=f"case '{c.ticket_number}'",
-        )
+    # Side-effect: Notifications (safely isolated so failures never break comment creation)
+    try:
+        notified_recipient_ids: set[int] = set()
+
+        # 1. Parse @mentions
+        if actor:
+            mention_notifications = parse_and_notify_mentions(
+                text=body,
+                actor=actor,
+                project_id=c.project_id,
+                case_id=c.id,
+                context_title=f"case '{c.ticket_number}'",
+            )
+            for n in mention_notifications:
+                notified_recipient_ids.add(n.recipient_id)
+
+        # 2. Notify case creator (if creator != author and not already mentioned)
+        if (
+            c.created_by
+            and c.created_by != user_id
+            and c.created_by not in notified_recipient_ids
+        ):
+            create_notification(
+                recipient_id=c.created_by,
+                actor_id=user_id,
+                type="case_comment",
+                title=f"{actor_name} commented on your case '{c.ticket_number}'",
+                message=f"{actor_name} commented on case '{c.ticket_number}': {body[:100]}",
+                project_id=c.project_id,
+                case_id=c.id,
+            )
+            notified_recipient_ids.add(c.created_by)
+
+        # 3. Notify case assignee (if assignee != author, != creator, and not already mentioned)
+        if (
+            c.assigned_to
+            and c.assigned_to != user_id
+            and c.assigned_to not in notified_recipient_ids
+        ):
+            create_notification(
+                recipient_id=c.assigned_to,
+                actor_id=user_id,
+                type="case_comment",
+                title=f"New comment on {c.ticket_number}",
+                message=f"{actor_name} commented: {body[:100]}",
+                project_id=c.project_id,
+                case_id=c.id,
+            )
+            notified_recipient_ids.add(c.assigned_to)
+
+    except Exception:
+        pass
 
     db.session.commit()
     return jsonify(message="Comment added successfully", comment=comment_schema.dump(comment)), 201

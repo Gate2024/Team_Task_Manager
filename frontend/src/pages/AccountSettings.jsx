@@ -307,7 +307,7 @@ export function AccountSettings() {
 
   return (
     <AppShell breadcrumb="Account Settings">
-      <div className="max-w-4xl mx-auto space-y-8 pb-16 animate-fadeIn">
+      <div className="w-full space-y-8 pb-16 animate-fadeIn">
         {/* Page Header */}
         <div className="border-b border-slate-200 dark:border-slate-800/80 pb-6">
           <div className="flex items-center gap-3">

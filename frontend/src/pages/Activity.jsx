@@ -72,7 +72,7 @@ export function Activity() {
 
   return (
     <AppShell breadcrumb="Audit & Activity Log">
-      <div className="space-y-6 animate-fadeIn pb-12 max-w-4xl mx-auto">
+      <div className="space-y-6 animate-fadeIn pb-12 w-full">
         {/* Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>

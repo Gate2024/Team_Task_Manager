@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { AuthNavbar } from '../components/layout/AuthNavbar';
+import { PublicLayout } from '../components/layout/PublicLayout';
+import { InteractiveAuthPlayground } from '../components/auth/InteractiveAuthPlayground';
 
 export function Login() {
   const location = useLocation();
@@ -15,7 +16,7 @@ export function Login() {
   const [serverError, setServerError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleSessionEnded = (e) => {
       const msg = e.detail?.message || 'Your session has ended. Please sign in again.';
       setServerError(msg);
@@ -48,21 +49,13 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      {/* Dedicated Auth Top Navbar */}
-      <AuthNavbar />
-
-      {/* Main Centered Content Area */}
-      <div className="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        {/* Ambient Radial Background Glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[400px] bg-gradient-to-tr from-indigo-500/15 via-violet-500/15 to-transparent blur-[120px] pointer-events-none rounded-full" />
-        <div className="absolute top-1/4 right-1/4 w-[300px] h-[250px] bg-sky-500/10 blur-[90px] pointer-events-none rounded-full" />
-
-        {/* Auth Glass Card */}
-        <div className="relative w-full max-w-md bg-white/90 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800/90 rounded-3xl p-8 sm:p-10 shadow-2xl backdrop-blur-2xl transition-all animate-fadeIn">
+    <PublicLayout>
+      <InteractiveAuthPlayground mode="login">
+        {/* Polished Glass Authentication Card */}
+        <div className="relative w-full max-w-md bg-white/95 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800/90 rounded-3xl p-7 sm:p-9 shadow-2xl backdrop-blur-2xl transition-all animate-fadeIn">
           {/* Card Header */}
-          <div className="text-center mb-8">
-            <div className="w-13 h-13 w-12 h-12 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 rounded-2xl flex items-center justify-center mx-auto text-white shadow-lg shadow-indigo-500/25">
+          <div className="text-center mb-7">
+            <div className="w-12 h-12 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center mx-auto text-white shadow-lg shadow-indigo-500/25">
               <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
@@ -72,17 +65,17 @@ export function Login() {
                 />
               </svg>
             </div>
-            <h1 className="mt-5 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            <h1 className="mt-4 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
               Welcome back
             </h1>
-            <p className="mt-2 text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-              Sign in to manage your tasks with absolute velocity
+            <p className="mt-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+              Sign in to access your projects, tasks, and team workspace
             </p>
           </div>
 
-          {/* Success Notification */}
+          {/* Success Notification Alert */}
           {successMessage && (
-            <div className="mb-6 bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs sm:text-sm p-3.5 rounded-2xl flex items-start gap-2.5 animate-fadeIn">
+            <div className="mb-5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs sm:text-sm p-3.5 rounded-2xl flex items-start gap-2.5 animate-fadeIn">
               <svg className="w-5 h-5 flex-shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -90,9 +83,9 @@ export function Login() {
             </div>
           )}
 
-          {/* Server Error Notification */}
+          {/* Server Error Notification Alert */}
           {serverError && (
-            <div className="mb-6 bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs sm:text-sm p-3.5 rounded-2xl flex items-start gap-2.5 animate-fadeIn">
+            <div className="mb-5 bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs sm:text-sm p-3.5 rounded-2xl flex items-start gap-2.5 animate-fadeIn">
               <svg className="w-5 h-5 flex-shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -100,7 +93,7 @@ export function Login() {
             </div>
           )}
 
-          {/* Form */}
+          {/* Authentication Form */}
           <form className="space-y-4" onSubmit={handleSubmit} noValidate>
             {/* Email Field with Icon */}
             <div>
@@ -122,7 +115,7 @@ export function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="alex@company.com"
-                  className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
                 />
               </div>
             </div>
@@ -149,13 +142,14 @@ export function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
-                  className="w-full pl-10 pr-11 py-2.5 bg-white dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm"
+                  className="w-full pl-10 pr-11 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                   title={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -192,7 +186,7 @@ export function Login() {
           </form>
 
           {/* Footer Link */}
-          <div className="mt-8 text-center text-xs text-slate-600 dark:text-slate-400 border-t border-slate-200/80 dark:border-slate-800/80 pt-5">
+          <div className="mt-7 text-center text-xs text-slate-600 dark:text-slate-400 border-t border-slate-200/80 dark:border-slate-800/80 pt-5">
             Don't have an account?{' '}
             <Link
               to="/register"
@@ -202,8 +196,9 @@ export function Login() {
             </Link>
           </div>
         </div>
-      </div>
-    </div>
+      </InteractiveAuthPlayground>
+    </PublicLayout>
   );
 }
+
 export default Login;

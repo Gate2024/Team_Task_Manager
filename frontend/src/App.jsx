@@ -4,11 +4,17 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Landing } from './pages/Landing';
+import { Features } from './pages/Features';
+import { About } from './pages/About';
+import { Contact } from './pages/Contact';
 import { Register } from './pages/Register';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Projects } from './pages/Projects';
 import { ProjectDetail } from './pages/ProjectDetail';
+import { CreateProject } from './pages/CreateProject';
+import { CreateTask } from './pages/CreateTask';
+import { CreateCase } from './pages/CreateCase';
 import { AccountSettings } from './pages/AccountSettings';
 import { Cases } from './pages/Cases';
 import { Reports } from './pages/Reports';
@@ -65,6 +71,9 @@ export function App() {
               <Routes>
                 {/* Public High-Converting SaaS Landing Page */}
                 <Route path="/" element={<Landing />} />
+                <Route path="/features" element={<Features />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/contact" element={<Contact />} />
 
                 {/* Public-Only Authentication Pages with Dedicated Auth Navbar */}
                 <Route
@@ -102,6 +111,14 @@ export function App() {
                   }
                 />
                 <Route
+                  path="/projects/new"
+                  element={
+                    <ProtectedRoute>
+                      <CreateProject />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/projects/:id"
                   element={
                     <ProtectedRoute>
@@ -110,10 +127,26 @@ export function App() {
                   }
                 />
                 <Route
+                  path="/tasks/new"
+                  element={
+                    <ProtectedRoute>
+                      <CreateTask />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/cases"
                   element={
                     <ProtectedRoute>
                       <Cases />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cases/new"
+                  element={
+                    <ProtectedRoute>
+                      <CreateCase />
                     </ProtectedRoute>
                   }
                 />

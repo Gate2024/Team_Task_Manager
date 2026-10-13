@@ -18,10 +18,8 @@ export function Cases() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCase, setSelectedCase] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [caseToDelete, setCaseToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
   // Filters
   const searchParams = new URLSearchParams(location.search);
@@ -33,15 +31,6 @@ export function Cases() {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [projectFilter, setProjectFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState(initialAssignedTo);
-
-  // Create form state
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    project_id: '',
-    priority: 'medium',
-    due_date: '',
-  });
 
   const loadData = async () => {
     try {
@@ -56,10 +45,6 @@ export function Cases() {
 
       const projList = projRes.projects || (Array.isArray(projRes) ? projRes : []);
       setProjects(projList);
-
-      if (projList.length > 0 && !formData.project_id) {
-        setFormData((prev) => ({ ...prev, project_id: projList[0].id }));
-      }
 
       // Check if URL specifies an ID to open
       if (initialCaseId) {
@@ -78,45 +63,6 @@ export function Cases() {
   useEffect(() => {
     loadData();
   }, []);
-
-  const handleCreateCase = async (e) => {
-    e.preventDefault();
-    if (!formData.title.trim()) {
-      toast.error('Case title is required');
-      return;
-    }
-    if (!formData.project_id) {
-      toast.error('Please select a project');
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      const res = await casesApi.create({
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        project_id: parseInt(formData.project_id, 10),
-        priority: formData.priority,
-        due_date: formData.due_date || null,
-      });
-
-      const newCase = res.case || res;
-      setCases((prev) => [newCase, ...prev]);
-      setShowCreateModal(false);
-      setFormData({
-        title: '',
-        description: '',
-        project_id: projects[0]?.id || '',
-        priority: 'medium',
-        due_date: '',
-      });
-      toast.success('Case created successfully');
-    } catch (err) {
-      toast.error(err.data?.message || 'Failed to create case');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const handleSelfAssign = async (caseItem) => {
     try {
@@ -232,8 +178,8 @@ export function Cases() {
           </div>
 
           <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all self-start sm:self-auto"
+            onClick={() => navigate('/cases/new')}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all self-start sm:self-auto active:scale-95"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -497,118 +443,7 @@ export function Cases() {
           )}
         </div>
 
-        {/* Create Case Modal */}
-        {showCreateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl p-6 sm:p-8 animate-scaleUp">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Create New Case / Issue</h3>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
 
-              <form onSubmit={handleCreateCase} className="mt-5 space-y-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Title *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    placeholder="e.g. Authentication token expires prematurely"
-                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Project *
-                  </label>
-                  <select
-                    required
-                    value={formData.project_id}
-                    onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
-                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  >
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                      Priority
-                    </label>
-                    <select
-                      value={formData.priority}
-                      onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="urgent">Urgent</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                      Due Date
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.due_date}
-                      onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    >
-                    </input>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Description & Steps to Reproduce
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Provide details about the issue or request..."
-                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-5 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-xl shadow-md transition-all"
-                  >
-                    {submitting ? 'Creating...' : 'Create Case'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
         {/* Delete Confirmation Modal */}
         <ConfirmModal
