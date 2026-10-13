@@ -1,35 +1,45 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { projectsApi, tasksApi } from '../../api';
+import { searchApi } from '../../api';
 import { StatusBadge } from '../StatusBadge';
 import { PriorityBadge } from './PriorityBadge';
 
 export function GlobalSearchModal({ isOpen, onClose }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const [projects, setProjects] = useState([]);
-  const [tasks, setTasks] = useState([]);
+  const [results, setResults] = useState({ projects: [], tasks: [], cases: [], members: [] });
   const [loading, setLoading] = useState(false);
 
-  // Load real workspace data when opened
+  // Debounced search effect
   useEffect(() => {
-    if (isOpen) {
-      setQuery('');
-      setLoading(true);
-      Promise.allSettled([projectsApi.list(), tasksApi.listAll()])
-        .then(([pRes, tRes]) => {
-          if (pRes.status === 'fulfilled') {
-            const data = pRes.value;
-            setProjects(Array.isArray(data) ? data : data.projects || []);
-          }
-          if (tRes.status === 'fulfilled') {
-            const data = tRes.value;
-            setTasks(Array.isArray(data) ? data : data.tasks || []);
-          }
-        })
-        .finally(() => setLoading(false));
+    if (!isOpen) return;
+
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setResults({ projects: [], tasks: [], cases: [], members: [] });
+      setLoading(false);
+      return;
     }
-  }, [isOpen]);
+
+    setLoading(true);
+    const handler = setTimeout(async () => {
+      try {
+        const res = await searchApi.search(trimmed);
+        setResults({
+          projects: res.projects || [],
+          tasks: res.tasks || [],
+          cases: res.cases || [],
+          members: res.members || [],
+        });
+      } catch (err) {
+        console.error('Search error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(handler);
+  }, [query, isOpen]);
 
   // Keyboard shortcut listener
   useEffect(() => {
@@ -48,35 +58,13 @@ export function GlobalSearchModal({ isOpen, onClose }) {
     };
   }, [isOpen, onClose]);
 
-  // Filtered results
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) {
-      return {
-        projects: projects.slice(0, 4),
-        tasks: tasks.slice(0, 6),
-      };
-    }
-
-    const matchedProjects = projects.filter(
-      (p) =>
-        (p.name && p.name.toLowerCase().includes(q)) ||
-        (p.description && p.description.toLowerCase().includes(q))
-    );
-
-    const matchedTasks = tasks.filter(
-      (t) =>
-        (t.title && t.title.toLowerCase().includes(q)) ||
-        (t.description && t.description.toLowerCase().includes(q))
-    );
-
-    return {
-      projects: matchedProjects.slice(0, 6),
-      tasks: matchedTasks.slice(0, 10),
-    };
-  }, [query, projects, tasks]);
-
   if (!isOpen) return null;
+
+  const totalResults =
+    results.projects.length +
+    results.tasks.length +
+    results.cases.length +
+    results.members.length;
 
   return (
     <div
@@ -99,7 +87,7 @@ export function GlobalSearchModal({ isOpen, onClose }) {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type to search projects, tasks, deliverables..."
+            placeholder="Search projects, tasks, cases, members (Ctrl+K)..."
             className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
           />
           <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-200 dark:bg-slate-800 rounded border border-slate-300 dark:border-slate-700">
@@ -110,21 +98,25 @@ export function GlobalSearchModal({ isOpen, onClose }) {
         {/* Results Body */}
         <div className="p-3 overflow-y-auto custom-scrollbar flex-1 space-y-4">
           {loading ? (
-            <div className="py-8 text-center text-xs text-slate-400">Loading workspace indexed items...</div>
-          ) : filtered.projects.length === 0 && filtered.tasks.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-400">Searching workspace items...</div>
+          ) : query.trim().length >= 2 && totalResults === 0 ? (
             <div className="py-10 text-center text-xs text-slate-400">
-              No matching projects or tasks found for "{query}".
+              No matching results found for "{query}".
+            </div>
+          ) : query.trim().length < 2 ? (
+            <div className="py-8 text-center text-xs text-slate-400">
+              Type at least 2 characters to search across the platform.
             </div>
           ) : (
             <>
               {/* Projects Group */}
-              {filtered.projects.length > 0 && (
+              {results.projects.length > 0 && (
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-1.5 block">
-                    Projects ({filtered.projects.length})
+                    Projects ({results.projects.length})
                   </span>
                   <div className="space-y-1">
-                    {filtered.projects.map((p) => (
+                    {results.projects.map((p) => (
                       <button
                         key={p.id}
                         onClick={() => {
@@ -156,13 +148,13 @@ export function GlobalSearchModal({ isOpen, onClose }) {
               )}
 
               {/* Tasks Group */}
-              {filtered.tasks.length > 0 && (
+              {results.tasks.length > 0 && (
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-1.5 block">
-                    Tasks ({filtered.tasks.length})
+                    Tasks ({results.tasks.length})
                   </span>
                   <div className="space-y-1">
-                    {filtered.tasks.map((t) => (
+                    {results.tasks.map((t) => (
                       <button
                         key={t.id}
                         onClick={() => {
@@ -177,15 +169,80 @@ export function GlobalSearchModal({ isOpen, onClose }) {
                             <p className="text-xs font-semibold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 truncate">
                               {t.title}
                             </p>
-                            {t.assignee && (
-                              <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                                Assigned to: {t.assignee.name}
-                              </p>
-                            )}
+                            <span className="text-[10px] text-slate-400 truncate mt-0.5 block">
+                              Project: {t.project_name || `#${t.project_id}`}
+                            </span>
                           </div>
                         </div>
                         <StatusBadge status={t.status} size="small" />
                       </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Cases Group */}
+              {results.cases.length > 0 && (
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-1.5 block">
+                    Cases & Tickets ({results.cases.length})
+                  </span>
+                  <div className="space-y-1">
+                    {results.cases.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          onClose();
+                          navigate(`/cases?id=${c.id}`);
+                        }}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-colors group"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 pr-3">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            {c.ticket_number}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 truncate">
+                              {c.title}
+                            </p>
+                            <span className="text-[10px] text-slate-400 truncate mt-0.5 block">
+                              Status: {c.status}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-400 flex-shrink-0 group-hover:translate-x-0.5 transition-transform">
+                          View &rarr;
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Members Group */}
+              {results.members.length > 0 && (
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-1.5 block">
+                    Team Members ({results.members.length})
+                  </span>
+                  <div className="space-y-1">
+                    {results.members.map((m) => (
+                      <div
+                        key={m.id}
+                        className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                            {m.name ? m.name.charAt(0).toUpperCase() : 'U'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                              {m.name}
+                            </p>
+                            <p className="text-[11px] text-slate-400 truncate">{m.email}</p>
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -196,8 +253,8 @@ export function GlobalSearchModal({ isOpen, onClose }) {
 
         {/* Footer info */}
         <div className="p-2.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 text-[10px] text-slate-400 flex items-center justify-between px-4">
-          <span>Navigate with click or Enter</span>
-          <span>TeamTask Workspace</span>
+          <span>Search across projects, tasks, cases, and team members</span>
+          <span>TeamTask SaaS</span>
         </div>
       </div>
     </div>

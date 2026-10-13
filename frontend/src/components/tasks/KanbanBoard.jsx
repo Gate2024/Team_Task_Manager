@@ -13,6 +13,7 @@ export function KanbanBoard({
   onEditTask,
   onDeleteTask,
   onAddTask,
+  onSelfAssign,
   canManage = true,
   currentUserId,
 }) {
@@ -46,6 +47,10 @@ export function KanbanBoard({
     try {
       const data = JSON.parse(e.dataTransfer.getData('text/plain'));
       if (data.taskId && data.originStatus !== targetStatus) {
+        const targetTask = tasks.find((t) => t.id === data.taskId);
+        if (targetTask && !canManage && targetTask.assigned_to !== currentUserId) {
+          return;
+        }
         onStatusChange(data.taskId, targetStatus);
       }
     } catch {
@@ -126,20 +131,25 @@ export function KanbanBoard({
                     <p className="text-xs text-slate-400">Drop tasks here or create new</p>
                   </div>
                 ) : (
-                  colTasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      variant="kanban"
-                      isDraggable={canManage || task.assigned_to === currentUserId}
-                      onDragStart={handleDragStart}
-                      canEdit={canManage || task.assigned_to === currentUserId}
-                      canDelete={canManage}
-                      onStatusChange={onStatusChange}
-                      onEdit={onEditTask}
-                      onDelete={onDeleteTask}
-                    />
-                  ))
+                  colTasks.map((task) => {
+                    const canUpdateStatus = canManage || task.assigned_to === currentUserId;
+                    return (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        variant="kanban"
+                        isDraggable={canUpdateStatus}
+                        onDragStart={handleDragStart}
+                        canEdit={canManage || task.assigned_to === currentUserId}
+                        canDelete={canManage}
+                        canUpdateStatus={canUpdateStatus}
+                        onStatusChange={onStatusChange}
+                        onEdit={onEditTask}
+                        onDelete={onDeleteTask}
+                        onSelfAssign={onSelfAssign}
+                      />
+                    );
+                  })
                 )}
               </div>
 

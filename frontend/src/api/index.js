@@ -43,7 +43,63 @@ export const tasksApi = {
   create: (projectId, taskData) => apiClient(`/api/projects/${projectId}/tasks`, { method: 'POST', data: taskData }),
   update: (taskId, taskData) => apiClient(`/api/tasks/${taskId}`, { method: 'PATCH', data: taskData }),
   updateStatus: (taskId, status) => apiClient(`/api/tasks/${taskId}/status`, { method: 'PATCH', data: { status } }),
+  selfAssign: (taskId) => apiClient(`/api/tasks/${taskId}/self-assign`, { method: 'POST' }),
   delete: (taskId) => apiClient(`/api/tasks/${taskId}`, { method: 'DELETE' }),
+};
+
+export const casesApi = {
+  list: (params) => {
+    const qs = params ? new URLSearchParams(params).toString() : '';
+    return apiClient(`/api/cases${qs ? `?${qs}` : ''}`);
+  },
+  get: (id) => apiClient(`/api/cases/${id}`),
+  create: (caseData) => apiClient('/api/cases', { method: 'POST', data: caseData }),
+  update: (id, caseData) => apiClient(`/api/cases/${id}`, { method: 'PATCH', data: caseData }),
+  selfAssign: (id) => apiClient(`/api/cases/${id}/self-assign`, { method: 'POST' }),
+  delete: (id) => apiClient(`/api/cases/${id}`, { method: 'DELETE' }),
+};
+
+export const commentsApi = {
+  listTaskComments: (taskId) => apiClient(`/api/tasks/${taskId}/comments`),
+  createTaskComment: (taskId, data) => apiClient(`/api/tasks/${taskId}/comments`, { method: 'POST', data }),
+  listCaseComments: (caseId) => apiClient(`/api/cases/${caseId}/comments`),
+  createCaseComment: (caseId, data) => apiClient(`/api/cases/${caseId}/comments`, { method: 'POST', data }),
+  delete: (commentId) => apiClient(`/api/comments/${commentId}`, { method: 'DELETE' }),
+};
+
+export const notificationsApi = {
+  list: (params) => {
+    const qs = params ? new URLSearchParams(params).toString() : '';
+    return apiClient(`/api/notifications${qs ? `?${qs}` : ''}`);
+  },
+  markRead: (id) => apiClient(`/api/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllRead: () => apiClient('/api/notifications/read-all', { method: 'POST' }),
+};
+
+export const activityApi = {
+  listGlobal: (params) => {
+    const qs = params ? new URLSearchParams(params).toString() : '';
+    return apiClient(`/api/activity${qs ? `?${qs}` : ''}`);
+  },
+  listProject: (projectId, params) => {
+    const qs = params ? new URLSearchParams(params).toString() : '';
+    return apiClient(`/api/projects/${projectId}/activity${qs ? `?${qs}` : ''}`);
+  },
+};
+
+export const reportsApi = {
+  getSummary: (params) => {
+    const qs = params ? new URLSearchParams(params).toString() : '';
+    return apiClient(`/api/reports/summary${qs ? `?${qs}` : ''}`);
+  },
+  getWorkload: (params) => {
+    const qs = params ? new URLSearchParams(params).toString() : '';
+    return apiClient(`/api/reports/workload${qs ? `?${qs}` : ''}`);
+  },
+};
+
+export const searchApi = {
+  search: (query) => apiClient(`/api/search?q=${encodeURIComponent(query)}`),
 };
 
 export { apiClient };

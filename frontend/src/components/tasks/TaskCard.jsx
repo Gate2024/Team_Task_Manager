@@ -10,11 +10,15 @@ export function TaskCard({
   onDelete,
   canEdit = true,
   canDelete = false,
+  canUpdateStatus = true,
   updating = false,
   variant = 'default', // 'default' | 'kanban' | 'compact' | 'row'
   isDraggable = false,
   onDragStart,
+  onSelfAssign,
 }) {
+  const isStatusEditable = Boolean(canUpdateStatus && onStatusChange);
+
   const isOverdue =
     task.due_date &&
     task.status !== 'done' &&
@@ -81,6 +85,16 @@ export function TaskCard({
                   {task.assignee.name}
                 </span>
               </>
+            ) : onSelfAssign ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelfAssign(task.id);
+                }}
+                className="px-2 py-0.5 rounded text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 transition-colors border border-indigo-200 dark:border-indigo-800"
+              >
+                Assign to me
+              </button>
             ) : (
               <span className="text-slate-400 italic text-[11px]">Unassigned</span>
             )}
@@ -105,7 +119,7 @@ export function TaskCard({
           </div>
 
           {/* Status Dropdown / Badge */}
-          {onStatusChange ? (
+          {isStatusEditable ? (
             <select
               value={task.status}
               disabled={updating}
@@ -145,10 +159,10 @@ export function TaskCard({
   if (variant === 'kanban') {
     return (
       <div
-        draggable={isDraggable}
+        draggable={isDraggable && canUpdateStatus}
         onDragStart={(e) => onDragStart && onDragStart(e, task)}
         className={`bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition-all select-none group relative ${
-          isDraggable ? 'cursor-grab active:cursor-grabbing' : ''
+          (isDraggable && canUpdateStatus) ? 'cursor-grab active:cursor-grabbing' : ''
         }`}
       >
         {/* Top: Priority & Overdue / Actions */}
@@ -209,6 +223,16 @@ export function TaskCard({
                   {task.assignee.name.split(' ')[0]}
                 </span>
               </div>
+            ) : onSelfAssign ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelfAssign(task.id);
+                }}
+                className="px-1.5 py-0.5 rounded text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 transition-colors border border-indigo-200 dark:border-indigo-800"
+              >
+                Assign to me
+              </button>
             ) : (
               <span className="text-slate-400 italic text-[10px]">Unassigned</span>
             )}
@@ -229,7 +253,7 @@ export function TaskCard({
             )}
 
             {/* Quick Status Selector for Mobile/Touch & Accessibility */}
-            {onStatusChange && (
+            {isStatusEditable && (
               <select
                 value={task.status}
                 disabled={updating}
@@ -341,6 +365,16 @@ export function TaskCard({
               </div>
               <span className="truncate max-w-[120px]">{task.assignee.name}</span>
             </div>
+          ) : onSelfAssign ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelfAssign(task.id);
+              }}
+              className="px-2 py-0.5 rounded text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 transition-colors border border-indigo-200 dark:border-indigo-800"
+            >
+              Assign to me
+            </button>
           ) : (
             <span className="italic text-slate-400 dark:text-slate-500 text-[11px]">Unassigned</span>
           )}
@@ -357,7 +391,7 @@ export function TaskCard({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 self-end sm:self-auto">
-          {onStatusChange && (
+          {isStatusEditable && (
             <select
               value={task.status}
               disabled={updating}

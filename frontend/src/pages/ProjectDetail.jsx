@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { projectsApi, tasksApi } from '../api';
+import { projectsApi, tasksApi, casesApi, activityApi, reportsApi } from '../api';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../context/ToastContext';
 import { AppShell } from '../components/layout/AppShell';
@@ -11,6 +11,8 @@ import { KanbanBoard } from '../components/tasks/KanbanBoard';
 import { TaskList } from '../components/tasks/TaskList';
 import { MemberList } from '../components/members/MemberList';
 import { ConfirmModal } from '../components/common/ConfirmModal';
+import { PriorityBadge } from '../components/common/PriorityBadge';
+import { CommentsThread } from '../components/common/CommentsThread';
 
 export function ProjectDetail() {
   const { id } = useParams();
@@ -22,6 +24,13 @@ export function ProjectDetail() {
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [members, setMembers] = useState([]);
+  const [cases, setCases] = useState([]);
+  const [activity, setActivity] = useState([]);
+  const [report, setReport] = useState(null);
+  const [selectedCase, setSelectedCase] = useState(null);
+  const [showCaseModal, setShowCaseModal] = useState(false);
+  const [caseFormData, setCaseFormData] = useState({ title: '', description: '', priority: 'medium', due_date: '' });
+  const [caseSubmitting, setCaseSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState(
     () => localStorage.getItem('project_active_tab') || 'overview'
   );
@@ -57,10 +66,11 @@ export function ProjectDetail() {
   const loadWorkspace = async () => {
     try {
       setError(null);
-      const [projRes, tasksRes, membersRes] = await Promise.all([
+      const [projRes, tasksRes, membersRes, casesRes] = await Promise.all([
         projectsApi.get(projectId),
         tasksApi.listByProject(projectId),
         projectsApi.listMembers(projectId),
+        casesApi.list({ project_id: projectId }),
       ]);
 
       const pData = projRes.project || projRes;
@@ -70,6 +80,7 @@ export function ProjectDetail() {
 
       setTasks(tasksRes.tasks || (Array.isArray(tasksRes) ? tasksRes : []));
       setMembers(membersRes.members || (Array.isArray(membersRes) ? membersRes : []));
+      setCases(casesRes.cases || (Array.isArray(casesRes) ? casesRes : []));
     } catch (err) {
       setError(err.data?.message || err.message || 'Failed to load project workspace');
       toast.error(err.data?.message || 'Could not load project');
@@ -81,6 +92,30 @@ export function ProjectDetail() {
   useEffect(() => {
     loadWorkspace();
   }, [projectId]);
+
+  // Load tab-specific data when activity or reports are opened
+  useEffect(() => {
+    if (activeTab === 'activity') {
+      activityApi.listProject(projectId).then((res) => {
+        setActivity(res.activity || res.activities || []);
+      }).catch(() => {});
+    } else if (activeTab === 'reports') {
+      reportsApi.getSummary({ project_id: projectId }).then((res) => {
+        setReport(res.summary || res);
+      }).catch(() => {});
+    }
+  }, [activeTab, projectId]);
+
+  const handleSelfAssignTask = async (taskId) => {
+    try {
+      const res = await tasksApi.selfAssign(taskId);
+      const updated = res.task || res;
+      setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      toast.success('Task assigned to you.');
+    } catch (err) {
+      toast.error(err.data?.message || 'Could not self-assign task');
+    }
+  };
 
   const userRole = project?.user_role || 'member';
   const isOwner = userRole === 'owner';
@@ -243,6 +278,58 @@ export function ProjectDetail() {
     toast.success('Member removed from project.');
   };
 
+  const handleCreateProjectCase = async (e) => {
+    e.preventDefault();
+    if (!caseFormData.title.trim()) return;
+    try {
+      setCaseSubmitting(true);
+      const res = await casesApi.create({
+        title: caseFormData.title.trim(),
+        description: caseFormData.description.trim(),
+        project_id: projectId,
+        priority: caseFormData.priority,
+        due_date: caseFormData.due_date || null,
+      });
+      const newCase = res.case || res;
+      setCases((prev) => [newCase, ...prev]);
+      setShowCaseModal(false);
+      setCaseFormData({ title: '', description: '', priority: 'medium', due_date: '' });
+      toast.success('Case created in this project.');
+    } catch (err) {
+      toast.error(err.data?.message || 'Failed to create case');
+    } finally {
+      setCaseSubmitting(false);
+    }
+  };
+
+  const handleSelfAssignCase = async (caseId) => {
+    try {
+      const res = await casesApi.selfAssign(caseId);
+      const updated = res.case || res;
+      setCases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      if (selectedCase?.id === updated.id) {
+        setSelectedCase(updated);
+      }
+      toast.success('Case assigned to you.');
+    } catch (err) {
+      toast.error(err.data?.message || 'Could not self-assign case');
+    }
+  };
+
+  const handleCaseStatusChange = async (caseId, newStatus) => {
+    try {
+      const res = await casesApi.update(caseId, { status: newStatus });
+      const updated = res.case || res;
+      setCases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      if (selectedCase?.id === updated.id) {
+        setSelectedCase(updated);
+      }
+      toast.success(`Case status set to ${newStatus}`);
+    } catch (err) {
+      toast.error(err.data?.message || 'Failed to update case status');
+    }
+  };
+
   // Handlers for Project Settings
   const handleSaveProjectSettings = async (e) => {
     e.preventDefault();
@@ -398,7 +485,10 @@ export function ProjectDetail() {
               { id: 'overview', label: 'Overview', count: null },
               { id: 'board', label: 'Board', count: tasks.length },
               { id: 'list', label: 'List', count: filteredTasks.length },
+              { id: 'cases', label: 'Cases', count: cases.length },
               { id: 'members', label: 'Members', count: members.length },
+              { id: 'activity', label: 'Activity', count: null },
+              { id: 'reports', label: 'Reports', count: null },
               ...(isOwnerOrAdmin ? [{ id: 'settings', label: 'Settings', count: null }] : []),
             ].map((tab) => (
               <button
@@ -498,6 +588,7 @@ export function ProjectDetail() {
                       task={task}
                       canEdit={isOwnerOrAdmin || task.assigned_to === user?.id}
                       canDelete={isOwnerOrAdmin}
+                      canUpdateStatus={isOwnerOrAdmin || task.assigned_to === user?.id}
                       onStatusChange={handleStatusChange}
                       onEdit={(t) => {
                         setSelectedTask(t);
@@ -562,6 +653,7 @@ export function ProjectDetail() {
               }}
               canManage={isOwnerOrAdmin}
               currentUserId={user?.id}
+              onSelfAssign={handleSelfAssignTask}
             />
           </div>
         )}
@@ -634,12 +726,104 @@ export function ProjectDetail() {
               onDeleteTask={(tid) => setTaskToDelete(tid)}
               canManage={isOwnerOrAdmin}
               currentUserId={user?.id}
+              onSelfAssign={handleSelfAssignTask}
             />
           </div>
         )}
 
         {/* ======================================================== */}
-        {/* 4. TAB CONTENT: MEMBERS                                  */}
+        {/* 4. TAB CONTENT: CASES                                    */}
+        {/* ======================================================== */}
+        {activeTab === 'cases' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Project Cases & Tickets</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Track customer issues, bugs, and support tickets linked to this workspace.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCaseModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>New Case</span>
+              </button>
+            </div>
+
+            {cases.length === 0 ? (
+              <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">No Cases in This Project</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+                  Create a case to log customer issues, incident reports, or system bug tickets.
+                </p>
+                <button
+                  onClick={() => setShowCaseModal(true)}
+                  className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-sm"
+                >
+                  Create First Case
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {cases.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => setSelectedCase(c)}
+                    className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 rounded-2xl p-5 shadow-sm transition-all cursor-pointer flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md">
+                          {c.ticket_number}
+                        </span>
+                        <PriorityBadge priority={c.priority} />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1">{c.title}</h4>
+                      {c.description && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 leading-relaxed">
+                          {c.description}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                      <span className="capitalize font-semibold text-slate-700 dark:text-slate-300">
+                        {c.status.replace('_', ' ')}
+                      </span>
+                      {c.assignee ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] text-slate-500 truncate max-w-[90px]">{c.assignee.name}</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelfAssignCase(c.id);
+                          }}
+                          className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                        >
+                          Assign to me
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 5. TAB CONTENT: MEMBERS                                  */}
         {/* ======================================================== */}
         {activeTab === 'members' && (
           <MemberList
@@ -652,7 +836,106 @@ export function ProjectDetail() {
         )}
 
         {/* ======================================================== */}
-        {/* 5. TAB CONTENT: SETTINGS (Owner / Admin only)           */}
+        {/* 6. TAB CONTENT: ACTIVITY AUDIT                           */}
+        {/* ======================================================== */}
+        {activeTab === 'activity' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Workspace Activity Log</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Complete audit trail of all project changes, deliverables, and team events.
+              </p>
+            </div>
+
+            {activity.length === 0 ? (
+              <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center text-xs text-slate-500">
+                No recorded activity for this project yet.
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+                {activity.map((act) => (
+                  <div key={act.id} className="p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold text-xs flex items-center justify-center uppercase">
+                        {act.actor?.name ? act.actor.name[0] : 'U'}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                          <span className="font-bold">{act.actor?.name || 'Someone'}</span> {act.action.replace('_', ' ')}
+                        </p>
+                        <span className="text-[10px] text-slate-400">{act.created_at ? new Date(act.created_at).toLocaleString() : ''}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 7. TAB CONTENT: REPORTS                                  */}
+        {/* ======================================================== */}
+        {activeTab === 'reports' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Project Performance Analytics</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Real-time delivery progress, completion velocity, and workload metrics.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Completion Rate</span>
+                <p className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">{stats.percent}%</p>
+              </div>
+              <div className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">Completed Tasks</span>
+                <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">{stats.completed}</p>
+              </div>
+              <div className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Active Work</span>
+                <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">{stats.inProgress + stats.todo}</p>
+              </div>
+              <div className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Active Cases</span>
+                <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">{cases.length}</p>
+              </div>
+            </div>
+
+            {/* Member Workload Table */}
+            <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-4">Team Workload Distribution</h4>
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {members.map((m) => {
+                  const memberTasks = tasks.filter((t) => t.assigned_to === (m.user_id || m.id));
+                  const doneCount = memberTasks.filter((t) => t.status === 'done').length;
+                  return (
+                    <div key={m.id || m.user_id} className="py-3 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold flex items-center justify-center uppercase">
+                          {m.user?.name ? m.user.name[0] : 'U'}
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-900 dark:text-white">{m.user?.name || 'Member'}</span>
+                          <span className="text-[10px] text-slate-400 block">{m.role}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">{memberTasks.length} tasks</span>
+                        <span className="text-[10px] text-emerald-500 block">{doneCount} done</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 8. TAB CONTENT: SETTINGS (Owner / Admin only)           */}
         {/* ======================================================== */}
         {activeTab === 'settings' && isOwnerOrAdmin && (
           <div className="space-y-8 max-w-2xl">
@@ -725,6 +1008,138 @@ export function ProjectDetail() {
           </div>
         )}
       </div>
+
+      {/* Case Creation Modal */}
+      {showCaseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Create Project Case</h3>
+            <p className="text-xs text-slate-500 mb-4">Log a new issue or support ticket for this workspace.</p>
+            <form onSubmit={handleCreateProjectCase} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Title</label>
+                <input
+                  type="text"
+                  required
+                  value={caseFormData.title}
+                  onChange={(e) => setCaseFormData({ ...caseFormData, title: e.target.value })}
+                  placeholder="e.g. Payment gateway 502 error"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Priority</label>
+                  <select
+                    value={caseFormData.priority}
+                    onChange={(e) => setCaseFormData({ ...caseFormData, priority: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Due Date</label>
+                  <input
+                    type="date"
+                    value={caseFormData.due_date}
+                    onChange={(e) => setCaseFormData({ ...caseFormData, due_date: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white"
+                  >
+                  </input>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                <textarea
+                  rows="3"
+                  value={caseFormData.description}
+                  onChange={(e) => setCaseFormData({ ...caseFormData, description: e.target.value })}
+                  placeholder="Steps to reproduce, customer impact, relevant URLs..."
+                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCaseModal(false)}
+                  className="px-4 py-2 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={caseSubmitting || !caseFormData.title.trim()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md disabled:opacity-50"
+                >
+                  {caseSubmitting ? 'Creating...' : 'Create Case'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Case Detail Drawer */}
+      {selectedCase && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-xl h-full shadow-2xl p-6 overflow-y-auto space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg">
+                  {selectedCase.ticket_number}
+                </span>
+                <PriorityBadge priority={selectedCase.priority} />
+              </div>
+              <button
+                onClick={() => setSelectedCase(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">{selectedCase.title}</h3>
+              {selectedCase.description && (
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-3 whitespace-pre-line leading-relaxed">
+                  {selectedCase.description}
+                </p>
+              )}
+            </div>
+
+            {/* Lifecycle Status Controls */}
+            <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Lifecycle Status</span>
+              <div className="grid grid-cols-4 gap-2">
+                {['open', 'in_progress', 'resolved', 'closed'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => handleCaseStatusChange(selectedCase.id, st)}
+                    className={`px-2 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${
+                      selectedCase.status === st
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-indigo-400'
+                    }`}
+                  >
+                    {st.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Comments & Discussion */}
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+              <CommentsThread targetType="cases" targetId={selectedCase.id} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Task Create / Edit Modal */}
       <TaskModal

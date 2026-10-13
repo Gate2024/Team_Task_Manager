@@ -345,14 +345,17 @@ export function Dashboard() {
                   <div className="space-y-3">
                     {displayedAdminTasks.slice(0, 5).map((task) => {
                       const proj = projects.find((p) => p.id === task.project_id);
+                      const isProjAdmin = isWorkspaceAdmin && (proj?.user_role === 'owner' || proj?.user_role === 'admin');
+                      const canUpdateStatus = isProjAdmin || task.assigned_to === user?.id;
                       return (
                         <TaskCard
                           key={task.id}
                           task={task}
                           projectName={proj?.name}
                           variant="row"
-                          canEdit={isWorkspaceAdmin || task.assigned_to === user?.id}
-                          canDelete={isWorkspaceAdmin}
+                          canEdit={isProjAdmin || task.assigned_to === user?.id}
+                          canDelete={isProjAdmin}
+                          canUpdateStatus={canUpdateStatus}
                           onStatusChange={handleTaskStatusChange}
                           onEdit={(t) => {
                             setSelectedTask(t);

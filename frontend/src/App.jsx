@@ -10,6 +10,11 @@ import { Dashboard } from './pages/Dashboard';
 import { Projects } from './pages/Projects';
 import { ProjectDetail } from './pages/ProjectDetail';
 import { AccountSettings } from './pages/AccountSettings';
+import { Cases } from './pages/Cases';
+import { Reports } from './pages/Reports';
+import { Activity } from './pages/Activity';
+import { Help } from './pages/Help';
+import { Notifications } from './pages/Notifications';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -101,6 +106,46 @@ export function App() {
                   element={
                     <ProtectedRoute>
                       <ProjectDetail />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cases"
+                  element={
+                    <ProtectedRoute>
+                      <Cases />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/reports"
+                  element={
+                    <ProtectedRoute>
+                      <Reports />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/activity"
+                  element={
+                    <ProtectedRoute>
+                      <Activity />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/help"
+                  element={
+                    <ProtectedRoute>
+                      <Help />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/notifications"
+                  element={
+                    <ProtectedRoute>
+                      <Notifications />
                     </ProtectedRoute>
                   }
                 />

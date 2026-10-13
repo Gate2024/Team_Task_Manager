@@ -22,6 +22,11 @@ from . import models  # noqa: F401 - registers model metadata for migrations
 from .auth import auth_bp
 from .projects import projects_bp
 from .tasks import tasks_bp
+from .cases import cases_bp
+from .comments import comments_bp
+from .notifications import notifications_bp
+from .activity import activity_bp
+from .reports import reports_bp
 
 
 def create_app(
@@ -113,6 +118,11 @@ def create_app(
     app.register_blueprint(auth_bp)
     app.register_blueprint(projects_bp)
     app.register_blueprint(tasks_bp)
+    app.register_blueprint(cases_bp)
+    app.register_blueprint(comments_bp)
+    app.register_blueprint(notifications_bp)
+    app.register_blueprint(activity_bp)
+    app.register_blueprint(reports_bp)
 
     @app.get("/api/health")
     def health():
@@ -124,13 +134,86 @@ def create_app(
         from .storage import get_storage
         return get_storage().serve(filename)
 
+    @app.get("/api/search")
+    @jwt_required()
+    def global_search():
+        """Search across accessible projects, tasks, cases, and team members."""
+        user_id = int(get_jwt_identity())
+        query_text = request.args.get("q", "").strip()
+        if not query_text or len(query_text) < 2:
+            return jsonify(projects=[], tasks=[], cases=[], members=[]), 200
+
+        from .models import Case, Project, ProjectMember, Task, User
+
+        memberships = db.session.execute(
+            db.select(ProjectMember.project_id).where(ProjectMember.user_id == user_id)
+        ).scalars().all()
+        owned_ids = db.session.execute(
+            db.select(Project.id).where(Project.owner_id == user_id)
+        ).scalars().all()
+        accessible_ids = set(memberships) | set(owned_ids)
+
+        if not accessible_ids:
+            return jsonify(projects=[], tasks=[], cases=[], members=[]), 200
+
+        pat = f"%{query_text}%"
+
+        # Projects
+        projs = db.session.execute(
+            db.select(Project)
+            .where(
+                Project.id.in_(accessible_ids),
+                db.or_(Project.name.ilike(pat), Project.description.ilike(pat)),
+            )
+            .limit(10)
+        ).scalars().all()
+
+        # Tasks
+        tsks = db.session.execute(
+            db.select(Task)
+            .where(
+                Task.project_id.in_(accessible_ids),
+                db.or_(Task.title.ilike(pat), Task.description.ilike(pat)),
+            )
+            .limit(10)
+        ).scalars().all()
+
+        # Cases
+        cses = db.session.execute(
+            db.select(Case)
+            .where(
+                Case.project_id.in_(accessible_ids),
+                db.or_(Case.ticket_number.ilike(pat), Case.title.ilike(pat), Case.description.ilike(pat)),
+            )
+            .limit(10)
+        ).scalars().all()
+
+        # Members in accessible projects
+        mem_users = db.session.execute(
+            db.select(User)
+            .join(ProjectMember, ProjectMember.user_id == User.id)
+            .where(
+                ProjectMember.project_id.in_(accessible_ids),
+                db.or_(User.name.ilike(pat), User.email.ilike(pat)),
+            )
+            .distinct()
+            .limit(10)
+        ).scalars().all()
+
+        return jsonify(
+            projects=[{"id": p.id, "name": p.name, "description": p.description} for p in projs],
+            tasks=[{"id": t.id, "title": t.title, "status": t.status, "priority": t.priority, "project_id": t.project_id} for t in tsks],
+            cases=[{"id": c.id, "ticket_number": c.ticket_number, "title": c.title, "status": c.status, "priority": c.priority, "project_id": c.project_id} for c in cses],
+            members=[{"id": m.id, "name": m.name, "email": m.email, "profile_image_url": m.profile_image_url} for m in mem_users],
+        ), 200
+
     @app.get("/api/dashboard/stats")
     @jwt_required()
     def dashboard_stats():
         """Aggregated workspace statistics for active dashboard."""
         user_id = int(get_jwt_identity())
         from datetime import date
-        from .models import Project, ProjectMember, Task
+        from .models import Case, Project, ProjectMember, Task
 
         memberships = db.session.execute(
             db.select(ProjectMember.project_id, ProjectMember.role).where(
@@ -155,19 +238,10 @@ def create_app(
         active_projects = len(all_proj_ids)
 
         tasks = []
-        if admin_proj_ids:
+        if all_proj_ids:
             tasks.extend(
                 db.session.execute(
-                    db.select(Task).where(Task.project_id.in_(admin_proj_ids))
-                ).scalars().all()
-            )
-        if member_only_proj_ids:
-            tasks.extend(
-                db.session.execute(
-                    db.select(Task).where(
-                        Task.project_id.in_(member_only_proj_ids),
-                        Task.assigned_to == user_id,
-                    )
+                    db.select(Task).where(Task.project_id.in_(all_proj_ids))
                 ).scalars().all()
             )
 
@@ -217,6 +291,19 @@ def create_app(
                 if t.due_date and t.status != "done" and t.due_date < today:
                     my_overdue += 1
 
+        # Cases metrics
+        all_cases = []
+        if all_proj_ids:
+            all_cases = db.session.execute(
+                db.select(Case).where(Case.project_id.in_(all_proj_ids))
+            ).scalars().all()
+
+        total_cases = len(all_cases)
+        open_cases = sum(1 for c in all_cases if c.status in ("open", "in_progress"))
+        resolved_cases = sum(1 for c in all_cases if c.status in ("resolved", "closed"))
+        my_cases = sum(1 for c in all_cases if c.assigned_to == user_id)
+        my_active_cases = sum(1 for c in all_cases if c.assigned_to == user_id and c.status in ("open", "in_progress"))
+
         return jsonify(
             active_projects=active_projects,
             total_tasks=total_tasks,
@@ -230,6 +317,11 @@ def create_app(
             my_in_progress=my_in_progress,
             my_completed=my_completed,
             my_overdue=my_overdue,
+            total_cases=total_cases,
+            open_cases=open_cases,
+            resolved_cases=resolved_cases,
+            my_cases=my_cases,
+            my_active_cases=my_active_cases,
         ), 200
 
     return app

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CommentsThread } from '../common/CommentsThread';
 
 export function TaskModal({
   isOpen,
@@ -236,6 +237,13 @@ export function TaskModal({
               />
             </div>
           </div>
+
+          {/* Discussion Thread for Existing Task */}
+          {isEditing && task?.id && (
+            <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
+              <CommentsThread taskId={task.id} title="Task Discussion & Updates" />
+            </div>
+          )}
 
           {/* Actions */}
           <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">

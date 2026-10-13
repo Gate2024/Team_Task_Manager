@@ -5,6 +5,7 @@ from __future__ import annotations
 from flask import jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
+from ..common.events import create_notification, log_activity
 from ..extensions import db
 from ..models import Project, ProjectMember, Task, User
 from ..schemas import ProjectMemberSchema, ProjectSchema, TaskSchema
@@ -74,6 +75,14 @@ def create_project():
 
     membership = ProjectMember(project_id=project.id, user_id=user_id, role="owner")
     db.session.add(membership)
+    db.session.flush()
+
+    log_activity(
+        action="project_created",
+        actor_id=user_id,
+        project_id=project.id,
+        metadata={"name": name},
+    )
     db.session.commit()
 
     res = project_schema.dump(project)
@@ -140,6 +149,13 @@ def update_project(project_id: int):
     if "description" in data:
         project.description = str(data["description"]).strip()
 
+    log_activity(
+        action="project_updated",
+        actor_id=user_id,
+        project_id=project.id,
+        metadata={"name": project.name},
+    )
+
     db.session.commit()
     res = project_schema.dump(project)
     res["user_role"] = "owner" if is_owner else "admin"
@@ -190,20 +206,8 @@ def list_project_tasks(project_id: int):
     if not membership and project.owner_id != user_id:
         return jsonify(message="Access denied to this project"), 403
 
-    role = "owner" if project.owner_id == user_id else (membership.role if membership else "member")
-
-    if role in ("owner", "admin"):
-        query = db.select(Task).where(Task.project_id == project_id).order_by(Task.created_at.desc())
-    else:
-        # Regular member sees only assigned tasks
-        query = (
-            db.select(Task)
-            .where(
-                Task.project_id == project_id,
-                Task.assigned_to == user_id,
-            )
-            .order_by(Task.created_at.desc())
-        )
+    # All authorized project members (owner, admin, member) can view all tasks in the project
+    query = db.select(Task).where(Task.project_id == project_id).order_by(Task.created_at.desc())
 
     all_tasks = db.session.execute(query).scalars().all()
     total = len(all_tasks)
@@ -310,6 +314,29 @@ def create_project_task(project_id: int):
         due_date=parsed_due_date,
     )
     db.session.add(new_task)
+    db.session.flush()
+
+    log_activity(
+        action="task_created",
+        actor_id=user_id,
+        project_id=project_id,
+        task_id=new_task.id,
+        metadata={"title": title, "priority": priority, "status": status},
+    )
+
+    if assigned_to and assigned_to != user_id:
+        actor = db.session.get(User, user_id)
+        actor_name = actor.name if actor else "Someone"
+        create_notification(
+            recipient_id=assigned_to,
+            actor_id=user_id,
+            type_="task_assigned",
+            title="Task Assigned",
+            message=f"{actor_name} assigned you to task '{title}'",
+            project_id=project_id,
+            task_id=new_task.id,
+        )
+
     db.session.commit()
 
     return jsonify(message="Task created successfully", task=task_schema.dump(new_task)), 201
@@ -410,6 +437,27 @@ def add_project_member(project_id: int):
         role=role,
     )
     db.session.add(new_member)
+    db.session.flush()
+
+    actor = db.session.get(User, user_id)
+    actor_name = actor.name if actor else "Someone"
+
+    log_activity(
+        action="member_added",
+        actor_id=user_id,
+        project_id=project_id,
+        metadata={"user_id": target_user.id, "user_name": target_user.name, "role": role},
+    )
+
+    create_notification(
+        recipient_id=target_user.id,
+        actor_id=user_id,
+        type_="member_added",
+        title="Added to Project",
+        message=f"{actor_name} added you to '{project.name}' as {role}",
+        project_id=project_id,
+    )
+
     db.session.commit()
 
     return jsonify(
@@ -479,6 +527,13 @@ def remove_project_member(project_id: int, user_id: int):
             Task.assigned_to == target_membership.user_id,
         )
         .values(assigned_to=None)
+    )
+
+    log_activity(
+        action="member_removed",
+        actor_id=caller_id,
+        project_id=project_id,
+        metadata={"user_id": target_membership.user_id},
     )
 
     db.session.delete(target_membership)

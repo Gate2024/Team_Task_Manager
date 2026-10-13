@@ -54,3 +54,6 @@ class Task(TimestampMixin, db.Model):
     assignee: Mapped["User | None"] = relationship(
         back_populates="assigned_tasks", foreign_keys=[assigned_to]
     )
+    comments: Mapped[list["Comment"]] = relationship(
+        back_populates="task", cascade="all, delete-orphan", passive_deletes=True
+    )

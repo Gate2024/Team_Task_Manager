@@ -8,6 +8,7 @@ export function TaskList({
   onStatusChange,
   onEditTask,
   onDeleteTask,
+  onSelfAssign,
   canManage = true,
   currentUserId,
 }) {
@@ -30,9 +31,11 @@ export function TaskList({
             variant="default"
             canEdit={canManage || task.assigned_to === currentUserId}
             canDelete={canManage}
+            canUpdateStatus={canManage || task.assigned_to === currentUserId}
             onStatusChange={onStatusChange}
             onEdit={onEditTask}
             onDelete={onDeleteTask}
+            onSelfAssign={onSelfAssign}
           />
         ))}
       </div>
@@ -57,6 +60,7 @@ export function TaskList({
                 task.status !== 'done' &&
                 new Date(task.due_date + 'T23:59:59') < new Date();
               const canEditThis = canManage || task.assigned_to === currentUserId;
+              const canUpdateStatus = canManage || task.assigned_to === currentUserId;
 
               return (
                 <tr
@@ -87,7 +91,7 @@ export function TaskList({
 
                   {/* Status */}
                   <td className="py-3 px-3 whitespace-nowrap">
-                    {onStatusChange ? (
+                    {canUpdateStatus && onStatusChange ? (
                       <select
                         value={task.status}
                         onChange={(e) => onStatusChange(task.id, e.target.value)}
@@ -114,6 +118,13 @@ export function TaskList({
                           {task.assignee.name}
                         </span>
                       </div>
+                    ) : onSelfAssign ? (
+                      <button
+                        onClick={() => onSelfAssign(task.id)}
+                        className="px-2 py-0.5 rounded text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 transition-colors border border-indigo-200 dark:border-indigo-800"
+                      >
+                        Assign to me
+                      </button>
                     ) : (
                       <span className="text-slate-400 italic text-[11px]">Unassigned</span>
                     )}

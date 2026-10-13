@@ -5,8 +5,9 @@ from __future__ import annotations
 from flask import jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
+from ..common.events import create_notification, log_activity, notify_project_admins
 from ..extensions import db
-from ..models import Project, ProjectMember, Task
+from ..models import Project, ProjectMember, Task, User
 from ..schemas import TaskSchema
 from . import tasks_bp
 
@@ -39,24 +40,30 @@ def list_tasks():
         else:
             member_project_ids.add(pid)
 
+    all_project_ids = admin_project_ids | member_project_ids
     all_tasks = []
 
-    # 1. For admin/owner projects: get all tasks
-    if admin_project_ids:
-        admin_tasks = db.session.execute(
-            db.select(Task).where(Task.project_id.in_(admin_project_ids)).order_by(Task.created_at.desc())
-        ).scalars().all()
-        all_tasks.extend(admin_tasks)
+    if all_project_ids:
+        query = db.select(Task).where(Task.project_id.in_(all_project_ids))
 
-    # 2. For member projects: get only assigned tasks
-    if member_project_ids:
-        member_tasks = db.session.execute(
-            db.select(Task).where(
-                Task.project_id.in_(member_project_ids),
-                Task.assigned_to == user_id,
-            ).order_by(Task.created_at.desc())
-        ).scalars().all()
-        all_tasks.extend(member_tasks)
+        # Optional query filter if explicitly requested (e.g. ?assigned_to=123 or ?assigned_to=me)
+        assigned_filter = request.args.get("assigned_to")
+        if assigned_filter:
+            if assigned_filter == "me":
+                query = query.where(Task.assigned_to == user_id)
+            else:
+                try:
+                    query = query.where(Task.assigned_to == int(assigned_filter))
+                except (ValueError, TypeError):
+                    pass
+
+        project_filter = request.args.get("project_id", type=int)
+        if project_filter:
+            if project_filter not in all_project_ids:
+                return jsonify(message="Forbidden: You do not have access to this project"), 403
+            query = query.where(Task.project_id == project_filter)
+
+        all_tasks = db.session.execute(query.order_by(Task.created_at.desc())).scalars().all()
 
     # Deduplicate by task ID if overlapping
     seen = set()
@@ -95,6 +102,30 @@ def list_tasks():
             "pages": 1,
         },
     ), 200
+
+
+@tasks_bp.get("/<int:task_id>")
+@jwt_required()
+def get_task(task_id: int):
+    """Retrieve details for a single task with project membership check."""
+    user_id = int(get_jwt_identity())
+    task = db.session.get(Task, task_id)
+    if not task:
+        return jsonify(message="Task not found"), 404
+
+    project = db.session.get(Project, task.project_id)
+    membership = db.session.execute(
+        db.select(ProjectMember).where(
+            ProjectMember.project_id == task.project_id,
+            ProjectMember.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+
+    is_member = (project and project.owner_id == user_id) or (membership is not None)
+    if not is_member:
+        return jsonify(message="Forbidden: You do not have access to this task"), 403
+
+    return jsonify(task=task_schema.dump(task)), 200
 
 
 @tasks_bp.patch("/<int:task_id>")
@@ -228,10 +259,89 @@ def update_task_status(task_id: int):
     if status not in ("todo", "in_progress", "done"):
         return jsonify(message="Status must be one of: todo, in_progress, done"), 400
 
+    old_status = task.status
     task.status = status
-    db.session.commit()
 
+    if old_status != status:
+        action_name = "task_completed" if status == "done" else "task_status_changed"
+        log_activity(
+            action=action_name,
+            actor_id=user_id,
+            project_id=task.project_id,
+            task_id=task.id,
+            metadata={"title": task.title, "old_status": old_status, "new_status": status},
+        )
+        actor = db.session.get(User, user_id)
+        actor_name = actor.name if actor else "Someone"
+        # Notify creator if creator is different
+        if task.created_by != user_id:
+            create_notification(
+                recipient_id=task.created_by,
+                actor_id=user_id,
+                type="task_status_changed",
+                title=f"Task Updated: {task.title}",
+                message=f"{actor_name} moved '{task.title}' to {status.replace('_', ' ').title()}",
+                project_id=task.project_id,
+                task_id=task.id,
+            )
+
+    db.session.commit()
     return jsonify(message="Task status updated", task=task_schema.dump(task)), 200
+
+
+@tasks_bp.post("/<int:task_id>/self-assign")
+@jwt_required()
+def self_assign_task(task_id: int):
+    """Allow an active project member to assign an unassigned task to themselves."""
+    user_id = int(get_jwt_identity())
+    task = db.session.get(Task, task_id)
+    if not task:
+        return jsonify(message="Task not found"), 404
+
+    project = db.session.get(Project, task.project_id)
+    is_member = (
+        project.owner_id == user_id
+        or db.session.execute(
+            db.select(ProjectMember.id).where(
+                ProjectMember.project_id == task.project_id,
+                ProjectMember.user_id == user_id,
+            )
+        ).scalar_one_or_none()
+        is not None
+    )
+    if not is_member:
+        return jsonify(message="Forbidden: You are not a member of this project"), 403
+
+    if task.assigned_to is not None:
+        if task.assigned_to == user_id:
+            return jsonify(message="Task is already assigned to you", task=task_schema.dump(task)), 200
+        return jsonify(
+            message="Conflict: This task has already been assigned to another team member"
+        ), 409
+
+    task.assigned_to = user_id
+    actor = db.session.get(User, user_id)
+    actor_name = actor.name if actor else "Team member"
+
+    log_activity(
+        action="task_self_assigned",
+        actor_id=user_id,
+        project_id=task.project_id,
+        task_id=task.id,
+        metadata={"title": task.title, "assigned_to": user_id},
+    )
+
+    notify_project_admins(
+        project_id=task.project_id,
+        type="task_self_assigned",
+        title=f"Task Claimed: {task.title}",
+        message=f"{actor_name} self-assigned task '{task.title}'",
+        actor_id=user_id,
+        task_id=task.id,
+    )
+
+    db.session.commit()
+    return jsonify(message="Task assigned to you successfully", task=task_schema.dump(task)), 200
 
 
 @tasks_bp.delete("/<int:task_id>")
@@ -257,6 +367,13 @@ def delete_task(task_id: int):
 
     if not is_owner_or_admin:
         return jsonify(message="Forbidden: Only project owners and admins can delete tasks"), 403
+
+    log_activity(
+        action="task_deleted",
+        actor_id=user_id,
+        project_id=task.project_id,
+        metadata={"title": task.title},
+    )
 
     db.session.delete(task)
     db.session.commit()

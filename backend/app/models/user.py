@@ -32,6 +32,18 @@ class User(TimestampMixin, db.Model):
     assigned_tasks: Mapped[list["Task"]] = relationship(
         back_populates="assignee", foreign_keys="Task.assigned_to", passive_deletes=True
     )
+    created_cases: Mapped[list["Case"]] = relationship(
+        back_populates="creator", foreign_keys="Case.created_by", passive_deletes=True
+    )
+    assigned_cases: Mapped[list["Case"]] = relationship(
+        back_populates="assignee", foreign_keys="Case.assigned_to", passive_deletes=True
+    )
+    comments: Mapped[list["Comment"]] = relationship(
+        back_populates="author", foreign_keys="Comment.author_id", passive_deletes=True
+    )
+    notifications: Mapped[list["Notification"]] = relationship(
+        back_populates="recipient", foreign_keys="Notification.recipient_id", passive_deletes=True
+    )
 
     @validates("email")
     def normalize_email(self, _key: str, value: str) -> str:
